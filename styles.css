@@ -1,0 +1,216 @@
+/* Todo.txt Reminders plugin styles */
+
+.todo-root {
+	display: flex;
+	height: 100%;
+	overflow: hidden;
+}
+
+/* Sidebar rail */
+.todo-rail {
+	flex: 0 0 200px;
+	border-right: 1px solid var(--background-modifier-border);
+	padding: 8px;
+	overflow-y: auto;
+}
+
+.todo-rail-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.todo-rail-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.todo-rail-item.is-active {
+	background: var(--background-modifier-active-hover);
+	font-weight: 600;
+}
+
+.todo-rail-item.is-drop {
+	outline: 2px solid var(--interactive-accent);
+}
+
+.todo-rail-icon {
+	display: inline-flex;
+	color: var(--text-muted);
+}
+
+.todo-rail-label {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.todo-rail-count {
+	color: var(--text-muted);
+	font-size: 0.8em;
+}
+
+/* Panel */
+.todo-panel {
+	flex: 1;
+	padding: 12px 16px;
+	overflow-y: auto;
+}
+
+.todo-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8px;
+}
+
+.todo-header h3 {
+	margin: 0;
+}
+
+.todo-add-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 4px;
+	cursor: pointer;
+}
+
+.todo-empty {
+	color: var(--text-muted);
+	padding: 16px 0;
+}
+
+/* Items */
+.todo-list {
+	display: flex;
+	flex-direction: column;
+}
+
+.todo-item {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 8px 6px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	border-top: 2px solid transparent;
+}
+
+.todo-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.todo-item.is-dragging {
+	opacity: 0.4;
+}
+
+.todo-item.drop-before {
+	border-top: 2px solid var(--interactive-accent);
+}
+
+.todo-item.drop-after {
+	border-bottom: 2px solid var(--interactive-accent);
+}
+
+.todo-check {
+	margin-top: 2px;
+	cursor: pointer;
+}
+
+.todo-item-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.todo-item.is-completed .todo-text {
+	text-decoration: line-through;
+	color: var(--text-muted);
+}
+
+.todo-meta {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	margin-top: 2px;
+	font-size: 0.8em;
+	color: var(--text-muted);
+}
+
+.todo-due.is-overdue {
+	color: var(--text-error);
+	font-weight: 600;
+}
+
+.todo-rec {
+	display: inline-flex;
+}
+
+.todo-pri {
+	flex: 0 0 auto;
+	font-size: 0.7em;
+	font-weight: 700;
+	padding: 1px 5px;
+	border-radius: 4px;
+	margin-top: 2px;
+	color: var(--text-on-accent);
+}
+
+.todo-pri-A {
+	background: var(--color-red);
+}
+.todo-pri-B {
+	background: var(--color-orange);
+}
+.todo-pri-C {
+	background: var(--color-blue);
+}
+
+.todo-actions {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.todo-action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 4px;
+	cursor: pointer;
+	color: var(--text-muted);
+}
+
+.todo-action:hover {
+	color: var(--text-normal);
+}
+
+/* Hover-only actions (edit / delete) */
+.todo-hover {
+	visibility: hidden;
+}
+
+.todo-item:hover .todo-hover {
+	visibility: visible;
+}
+
+/* Modal */
+.todo-rec-controls {
+	margin: 4px 0;
+}
+
+.todo-weekday {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	margin-right: 8px;
+	font-size: 0.85em;
+}
+
+.todo-modal-error {
+	color: var(--text-error);
+	margin-top: 8px;
+}

@@ -1,0 +1,25 @@
+{
+	"name": "todo-txt-reminders",
+	"version": "0.1.0",
+	"description": "A Reminders.app-style task manager backed by a single todo.txt file.",
+	"main": "main.js",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"version": "node version-bump.mjs && git add manifest.json versions.json"
+	},
+	"keywords": [],
+	"author": "2easy",
+	"license": "MIT",
+	"devDependencies": {
+		"@types/node": "^20.11.5",
+		"builtin-modules": "^3.3.0",
+		"esbuild": "0.19.11",
+		"obsidian": "latest",
+		"tslib": "2.6.2",
+		"typescript": "5.3.3"
+	},
+	"dependencies": {
+		"rrule": "^2.8.1"
+	}
+}

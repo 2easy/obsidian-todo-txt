@@ -1,0 +1,10 @@
+{
+	"id": "todo-txt-reminders",
+	"name": "Todo.txt Reminders",
+	"version": "0.1.0",
+	"minAppVersion": "1.5.0",
+	"description": "A Reminders.app-style task manager backed by a single todo.txt file.",
+	"author": "2easy",
+	"authorUrl": "",
+	"isDesktopOnly": true
+}
