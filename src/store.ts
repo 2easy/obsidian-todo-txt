@@ -66,6 +66,7 @@ export class TodoStore {
 	}
 
 	async addTask(t: Task): Promise<void> {
+		if (!t.creationDate) t.creationDate = todayStr();
 		const lines = await this.readLines();
 		lines.push(serializeTask(t));
 		await this.writeLines(lines);
@@ -115,6 +116,7 @@ export class TodoStore {
 				const next = parseTask(rawLine); // fresh, still-open copy
 				next.completed = false;
 				next.completionDate = null;
+				next.creationDate = todayStr(); // spawned now
 				next.due = nd;
 				lines.splice(i, 0, serializeTask(next));
 			}

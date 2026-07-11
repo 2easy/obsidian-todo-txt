@@ -3,6 +3,7 @@ import { TodoStore, deriveLists } from "./src/store";
 import { DEFAULT_SETTINGS, TodoSettings, TodoSettingTab } from "./src/settings";
 import { TodoView, VIEW_TYPE_TODO } from "./src/view";
 import { TaskModal } from "./src/modal";
+import { matchHotkey } from "./src/hotkey";
 
 export default class TodoTxtRemindersPlugin extends Plugin {
 	settings!: TodoSettings;
@@ -38,6 +39,26 @@ export default class TodoTxtRemindersPlugin extends Plugin {
 		});
 
 		this.addSettingTab(new TodoSettingTab(this.app, this));
+
+		// Configurable global shortcut to open the new-reminder window. Uses a
+		// capture-phase listener so it can override Obsidian's own binding for
+		// the same combo (e.g. Cmd+N → New note).
+		this.registerDomEvent(
+			document,
+			"keydown",
+			(e: KeyboardEvent) => {
+				const hk = this.settings.newItemHotkey;
+				if (!hk) return;
+				const target = e.target as HTMLElement | null;
+				if (target?.closest(".todo-hotkey-input")) return; // recording
+				if (!matchHotkey(e, hk)) return;
+				e.preventDefault();
+				e.stopPropagation();
+				e.stopImmediatePropagation();
+				void this.newReminder();
+			},
+			{ capture: true }
+		);
 
 		// Re-render open views when the backing file changes on disk (e.g. an
 		// external agent rewriting todo.txt).

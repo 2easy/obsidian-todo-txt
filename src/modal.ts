@@ -230,6 +230,7 @@ export class TaskModal extends Modal {
 		const task: Task = {
 			completed: this.existing?.completed ?? false,
 			completionDate: this.existing?.completionDate ?? null,
+			creationDate: this.existing?.creationDate ?? null,
 			priority: this.priority,
 			text,
 			projects: [project],

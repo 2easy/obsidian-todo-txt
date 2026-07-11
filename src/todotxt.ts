@@ -6,6 +6,7 @@ export type Priority = "A" | "B" | "C" | null;
 export interface Task {
 	completed: boolean;
 	completionDate: string | null; // YYYY-MM-DD
+	creationDate: string | null; // YYYY-MM-DD (required by spec if completed)
 	priority: Priority;
 	text: string; // description with recognized tokens removed
 	projects: string[]; // list names, without the leading '+'
@@ -21,9 +22,10 @@ export function parseTask(raw: string): Task {
 	let s = raw.trim();
 	let completed = false;
 	let completionDate: string | null = null;
+	let creationDate: string | null = null;
 	let priority: Priority = null;
 
-	// Completion marker: leading "x " per spec.
+	// Completion marker: leading "x " per spec, followed by the completion date.
 	if (s === "x" || s.startsWith("x ")) {
 		completed = true;
 		s = s.slice(1).trimStart();
@@ -39,6 +41,15 @@ export function parseTask(raw: string): Task {
 	if (pm) {
 		priority = pm[1] as Priority;
 		s = s.slice(pm[0].length);
+	}
+
+	// Creation date: a bare leading date. For completed tasks this is the
+	// second date (after the completion date); for active tasks it follows
+	// the optional priority.
+	const lead = s.split(/\s+/)[0] ?? "";
+	if (DATE_RE.test(lead)) {
+		creationDate = lead;
+		s = s.slice(lead.length).trimStart();
 	}
 
 	const words = s.length ? s.split(/\s+/) : [];
@@ -65,6 +76,7 @@ export function parseTask(raw: string): Task {
 	return {
 		completed,
 		completionDate,
+		creationDate,
 		priority,
 		text: textWords.join(" "),
 		projects,
@@ -83,6 +95,9 @@ export function serializeTask(t: Task): string {
 	} else if (t.priority) {
 		parts.push(`(${t.priority})`);
 	}
+	// Creation date follows the completion/priority prefix. The spec requires
+	// it whenever a completion date is present.
+	if (t.creationDate) parts.push(t.creationDate);
 	if (t.text) parts.push(t.text);
 	for (const p of t.projects) parts.push("+" + p);
 	if (t.due) parts.push("due:" + t.due);
