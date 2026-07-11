@@ -68,6 +68,9 @@ export function parseTask(raw: string): Task {
 			link = w.slice(5);
 		} else if (w.startsWith("rec:") && w.length > 4) {
 			rec = w.slice(4);
+		} else if (w.startsWith("pri:") && w.length === 5) {
+			// Priority preserved on completed items (which drop the (A) prefix).
+			if (!priority) priority = w.slice(4) as Priority;
 		} else {
 			textWords.push(w);
 		}
@@ -103,6 +106,8 @@ export function serializeTask(t: Task): string {
 	if (t.due) parts.push("due:" + t.due);
 	if (t.link) parts.push("link:" + t.link);
 	if (t.rec) parts.push("rec:" + t.rec);
+	// A completed line drops the (A) prefix, so keep priority as a pri: key.
+	if (t.completed && t.priority) parts.push("pri:" + t.priority);
 	return parts.join(" ");
 }
 
