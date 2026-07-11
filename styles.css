@@ -68,6 +68,23 @@
 	margin-bottom: 8px;
 }
 
+.todo-header-left {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.todo-header-icon {
+	display: inline-flex;
+	color: var(--text-muted);
+}
+
+.todo-header-icon svg {
+	width: 20px;
+	height: 20px;
+}
+
 .todo-header h3 {
 	margin: 0;
 }
@@ -141,10 +158,23 @@
 }
 
 .todo-list-tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
 	padding: 0 6px;
 	border-radius: 8px;
+	border: 1px solid transparent;
 	background: var(--background-modifier-border);
 	color: var(--text-muted);
+}
+
+.todo-list-tag-icon {
+	display: inline-flex;
+}
+
+.todo-list-tag-icon svg {
+	width: 12px;
+	height: 12px;
 }
 
 .todo-due.is-overdue {

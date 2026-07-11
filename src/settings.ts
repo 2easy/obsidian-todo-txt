@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, Setting, getIconIds } from "obsidian";
 import type TodoTxtRemindersPlugin from "../main";
 import {
 	eventToHotkey,
@@ -6,16 +6,28 @@ import {
 	isModifierOnly,
 } from "./hotkey";
 
+// A per-list color + icon override, matched by name ignoring spaces/case.
+export interface ListStyle {
+	name: string;
+	color: string; // hex, e.g. "#4caf50"
+	icon: string; // an icon id (see getIconIds())
+}
+
 export interface TodoSettings {
 	path: string;
 	defaultList: string; // pre-selected list for new items; always pinned
 	newItemHotkey: string; // normalized hotkey, e.g. "Meta+N"; "" disables
+	listStyles: ListStyle[];
 }
 
 export const DEFAULT_SETTINGS: TodoSettings = {
 	path: "todo.txt",
 	defaultList: "Inbox",
 	newItemHotkey: "Meta+N",
+	listStyles: [
+		{ name: "Today", color: "#4a90e2", icon: "calendar-clock" },
+		{ name: "Inbox", color: "#43a047", icon: "inbox" },
+	],
 };
 
 export class TodoSettingTab extends PluginSettingTab {
@@ -87,5 +99,80 @@ export class TodoSettingTab extends PluginSettingTab {
 					text.inputEl.blur();
 				});
 			});
+
+		this.renderListStyles(containerEl);
+	}
+
+	private renderListStyles(containerEl: HTMLElement): void {
+		containerEl.createEl("h3", { text: "List styles" });
+		containerEl.createEl("p", {
+			cls: "setting-item-description",
+			text: "Give a list a custom color and icon. Matched by name ignoring spaces and case (e.g. \"Home Chores\" matches HomeChores).",
+		});
+
+		// Shared datalist of icon ids for the icon inputs.
+		const datalistId = "todo-icon-datalist";
+		const datalist = containerEl.createEl("datalist");
+		datalist.id = datalistId;
+		for (const id of getIconIds()) {
+			datalist.createEl("option", { value: id });
+		}
+
+		const styles = this.plugin.settings.listStyles;
+		styles.forEach((style, i) => {
+			const row = new Setting(containerEl);
+			row.addText((t) =>
+				t
+					.setPlaceholder("List name")
+					.setValue(style.name)
+					.onChange(async (v) => {
+						style.name = v;
+						await this.plugin.saveSettings();
+						this.plugin.refreshViews();
+					})
+			);
+			row.addColorPicker((c) =>
+				c.setValue(style.color || "#888888").onChange(async (v) => {
+					style.color = v;
+					await this.plugin.saveSettings();
+					this.plugin.refreshViews();
+				})
+			);
+			row.addText((t) => {
+				t.setPlaceholder("icon (e.g. star)")
+					.setValue(style.icon)
+					.onChange(async (v) => {
+						style.icon = v.trim();
+						preview.setIcon(style.icon || "list");
+						await this.plugin.saveSettings();
+						this.plugin.refreshViews();
+					});
+				t.inputEl.setAttribute("list", datalistId);
+			});
+			let preview!: import("obsidian").ExtraButtonComponent;
+			row.addExtraButton((b) => {
+				preview = b;
+				b.setIcon(style.icon || "list").setTooltip("Icon preview");
+			});
+			row.addExtraButton((b) =>
+				b
+					.setIcon("trash-2")
+					.setTooltip("Remove")
+					.onClick(async () => {
+						styles.splice(i, 1);
+						await this.plugin.saveSettings();
+						this.plugin.refreshViews();
+						this.display();
+					})
+			);
+		});
+
+		new Setting(containerEl).addButton((b) =>
+			b.setButtonText("Add list style").onClick(async () => {
+				styles.push({ name: "", color: "#888888", icon: "list" });
+				await this.plugin.saveSettings();
+				this.display();
+			})
+		);
 	}
 }

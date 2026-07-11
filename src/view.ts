@@ -6,9 +6,11 @@ import {
 	inToday,
 	isPastDue,
 	isVisible,
+	normalizeListName,
 	todayStr,
 } from "./todotxt";
 import { TaskModal } from "./modal";
+import type { ListStyle } from "./settings";
 
 export const VIEW_TYPE_TODO = "todo-txt-reminders-view";
 const TODAY = " today"; // sentinel; sorts/handles distinctly from real lists
@@ -70,6 +72,14 @@ export class TodoView extends ItemView {
 		return this.selected === TODAY ? null : this.selected;
 	}
 
+	// Configured color/icon override for a list, matched ignoring spaces/case.
+	private styleFor(list: string): ListStyle | undefined {
+		const key = normalizeListName(list);
+		return this.plugin.settings.listStyles.find(
+			(s) => s.name && normalizeListName(s.name) === key
+		);
+	}
+
 	async onOpen(): Promise<void> {
 		// Mark that the view is present so the plugin keeps it re-opened if
 		// closed (covers both manual opens and leaves restored on startup).
@@ -119,27 +129,42 @@ export class TodoView extends ItemView {
 			).length;
 
 		const todayCount = tasks.filter((rt) => inToday(rt.task, today)).length;
+		const stToday = this.styleFor(TODAY); // normalizes to "today"
 		this.railEl.appendChild(
-			this.railItem(TODAY, "Today", todayCount, today, "calendar-clock")
+			this.railItem(
+				TODAY,
+				"Today",
+				todayCount,
+				stToday?.icon || "calendar-clock",
+				stToday?.color
+			)
 		);
 
 		// Default list pinned second, always shown (even with zero items).
 		if (defaultList) {
+			const st = this.styleFor(defaultList);
 			this.railEl.appendChild(
 				this.railItem(
 					defaultList,
 					humanizeProject(defaultList),
 					listCount(defaultList),
-					today,
-					"inbox"
+					st?.icon || "inbox",
+					st?.color
 				)
 			);
 		}
 
 		for (const list of lists) {
 			if (list === defaultList) continue; // already pinned above
+			const st = this.styleFor(list);
 			this.railEl.appendChild(
-				this.railItem(list, humanizeProject(list), listCount(list), today, "list")
+				this.railItem(
+					list,
+					humanizeProject(list),
+					listCount(list),
+					st?.icon || "list",
+					st?.color
+				)
 			);
 		}
 	}
@@ -148,13 +173,14 @@ export class TodoView extends ItemView {
 		key: string,
 		label: string,
 		count: number,
-		today: string,
-		icon: string
+		icon: string,
+		color?: string
 	): HTMLElement {
 		const el = createDiv({ cls: "todo-rail-item" });
 		if (key === this.selected) el.addClass("is-active");
 		const ic = el.createSpan({ cls: "todo-rail-icon" });
 		setIcon(ic, icon);
+		if (color) ic.style.color = color;
 		el.createSpan({ cls: "todo-rail-label", text: label });
 		el.createSpan({ cls: "todo-rail-count", text: String(count) });
 
@@ -193,7 +219,19 @@ export class TodoView extends ItemView {
 		const isToday = this.selected === TODAY;
 
 		const header = this.panelEl.createDiv({ cls: "todo-header" });
-		header.createEl("h3", {
+		const left = header.createDiv({ cls: "todo-header-left" });
+
+		const st = this.styleFor(isToday ? TODAY : this.selected);
+		const defaultIcon = isToday
+			? "calendar-clock"
+			: this.selected === this.plugin.settings.defaultList
+				? "inbox"
+				: "list";
+		const icon = left.createSpan({ cls: "todo-header-icon" });
+		setIcon(icon, st?.icon || defaultIcon);
+		if (st?.color) icon.style.color = st.color;
+
+		left.createEl("h3", {
 			text: isToday ? "Today" : humanizeProject(this.selected),
 		});
 		// Add button on every view. In Today the modal opens with no preset
@@ -265,12 +303,20 @@ export class TodoView extends ItemView {
 		main.createSpan({ cls: "todo-text", text: t.text });
 
 		const meta = main.createDiv({ cls: "todo-meta" });
-		// In Today, show the originating list to the left of the due date.
-		if (showList && t.projects.length) {
-			meta.createSpan({
-				cls: "todo-list-tag",
-				text: t.projects.map(humanizeProject).join(", "),
-			});
+		// In Today, show the originating list(s) to the left of the due date,
+		// one pill each so per-list colors/icons apply.
+		if (showList) {
+			for (const project of t.projects) {
+				const tag = meta.createSpan({ cls: "todo-list-tag" });
+				const st = this.styleFor(project);
+				if (st?.icon) {
+					const ic = tag.createSpan({ cls: "todo-list-tag-icon" });
+					setIcon(ic, st.icon);
+					if (st.color) ic.style.color = st.color;
+				}
+				tag.createSpan({ text: humanizeProject(project) });
+				if (st?.color) tag.style.borderColor = st.color;
+			}
 		}
 		if (t.due) {
 			const due = meta.createSpan({ cls: "todo-due", text: t.due });

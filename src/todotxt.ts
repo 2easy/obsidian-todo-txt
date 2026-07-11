@@ -145,6 +145,12 @@ export function isPastDue(t: Task, today: string): boolean {
 // Project tags can't contain spaces, so a multi-word list is stored camelCase
 // (e.g. "HomeChores"). For display we split it back into words. Storage is
 // unaffected — this is display-only. Handles acronyms too ("HTMLParser").
+// Normalize a list name for matching, ignoring spaces and case so that
+// "Home Chores", "homechores", and "HomeChores" all match.
+export function normalizeListName(name: string): string {
+	return name.replace(/\s+/g, "").toLowerCase();
+}
+
 export function humanizeProject(name: string): string {
 	return name
 		.replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")

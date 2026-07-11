@@ -201,7 +201,13 @@ export default class TodoTxtRemindersPlugin extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const data = await this.loadData();
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
+		// Clone the styles array/objects so editing them never mutates
+		// DEFAULT_SETTINGS (which would leak across reloads).
+		this.settings.listStyles = (
+			data?.listStyles ?? DEFAULT_SETTINGS.listStyles
+		).map((s: TodoSettings["listStyles"][number]) => ({ ...s }));
 	}
 
 	async saveSettings(): Promise<void> {
