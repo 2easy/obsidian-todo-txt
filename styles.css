@@ -188,6 +188,12 @@
 	color: var(--text-normal);
 }
 
+.todo-action svg {
+	width: 16px;
+	height: 16px;
+	display: block;
+}
+
 /* Hover-only actions (edit / delete) */
 .todo-hover {
 	visibility: hidden;
