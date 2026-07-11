@@ -1,7 +1,7 @@
 // Structured create/edit modal. Users never type todo.txt syntax directly.
 
 import { App, Modal, Setting } from "obsidian";
-import { Priority, Task } from "./todotxt";
+import { humanizeProject, Priority, Task } from "./todotxt";
 import {
 	RecState,
 	RecType,
@@ -95,10 +95,10 @@ export class TaskModal extends Modal {
 		// List dropdown (existing lists + "New list…").
 		new Setting(contentEl).setName("List").addDropdown((d) => {
 			const known = new Set(this.lists);
-			for (const l of this.lists) d.addOption(l, l);
+			for (const l of this.lists) d.addOption(l, humanizeProject(l));
 			// Preserve an existing project even if it isn't in the derived set.
 			if (this.listChoice !== NEW_LIST && !known.has(this.listChoice)) {
-				d.addOption(this.listChoice, this.listChoice);
+				d.addOption(this.listChoice, humanizeProject(this.listChoice));
 			}
 			d.addOption(NEW_LIST, "New list…");
 			d.setValue(this.listChoice);

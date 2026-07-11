@@ -140,6 +140,13 @@
 	color: var(--text-muted);
 }
 
+.todo-list-tag {
+	padding: 0 6px;
+	border-radius: 8px;
+	background: var(--background-modifier-border);
+	color: var(--text-muted);
+}
+
 .todo-due.is-overdue {
 	color: var(--text-error);
 	font-weight: 600;

@@ -136,3 +136,13 @@ export function inToday(t: Task, today: string): boolean {
 export function isPastDue(t: Task, today: string): boolean {
 	return !!t.due && t.due < today;
 }
+
+// Project tags can't contain spaces, so a multi-word list is stored camelCase
+// (e.g. "HomeChores"). For display we split it back into words. Storage is
+// unaffected — this is display-only. Handles acronyms too ("HTMLParser").
+export function humanizeProject(name: string): string {
+	return name
+		.replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+		.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+		.trim();
+}
