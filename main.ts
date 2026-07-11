@@ -66,6 +66,11 @@ export default class TodoTxtRemindersPlugin extends Plugin {
 			void this.handleUri(params);
 		});
 
+		// Open and focus the view once the workspace is ready.
+		if (this.settings.openOnStartup) {
+			this.app.workspace.onLayoutReady(() => void this.activateView());
+		}
+
 		// Keep the view effectively unclosable: once it has been open, reopen
 		// it immediately if it gets closed.
 		this.registerEvent(

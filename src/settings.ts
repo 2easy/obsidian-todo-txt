@@ -17,6 +17,7 @@ export interface TodoSettings {
 	path: string;
 	defaultList: string; // pre-selected list for new items; always pinned
 	newItemHotkey: string; // normalized hotkey, e.g. "Meta+N"; "" disables
+	openOnStartup: boolean;
 	listStyles: ListStyle[];
 }
 
@@ -24,6 +25,7 @@ export const DEFAULT_SETTINGS: TodoSettings = {
 	path: "todo.txt",
 	defaultList: "Inbox",
 	newItemHotkey: "Meta+N",
+	openOnStartup: true,
 	listStyles: [
 		{ name: "Today", color: "#4a90e2", icon: "calendar-clock" },
 		{ name: "Inbox", color: "#43a047", icon: "inbox" },
@@ -71,6 +73,16 @@ export class TodoSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 						this.plugin.refreshViews();
 					})
+			);
+
+		new Setting(containerEl)
+			.setName("Open on startup")
+			.setDesc("Open and focus the Todo.txt Reminders view when Obsidian starts.")
+			.addToggle((t) =>
+				t.setValue(this.plugin.settings.openOnStartup).onChange(async (v) => {
+					this.plugin.settings.openOnStartup = v;
+					await this.plugin.saveSettings();
+				})
 			);
 
 		new Setting(containerEl)
