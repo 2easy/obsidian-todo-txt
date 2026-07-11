@@ -1,9 +1,26 @@
-import { Plugin, TAbstractFile, WorkspaceLeaf } from "obsidian";
+import {
+	Notice,
+	ObsidianProtocolData,
+	Plugin,
+	TAbstractFile,
+	WorkspaceLeaf,
+} from "obsidian";
 import { TodoStore, deriveLists } from "./src/store";
 import { DEFAULT_SETTINGS, TodoSettings, TodoSettingTab } from "./src/settings";
 import { TodoView, VIEW_TYPE_TODO } from "./src/view";
 import { TaskModal } from "./src/modal";
 import { matchHotkey } from "./src/hotkey";
+import { Priority, Task } from "./src/todotxt";
+
+// Accepts "A"/"B"/"C" (case-insensitive) or the words used in the modal.
+function parsePriority(raw: string | undefined): Priority {
+	if (!raw) return null;
+	const v = raw.trim().toLowerCase();
+	if (v === "a" || v === "high") return "A";
+	if (v === "b" || v === "med" || v === "medium") return "B";
+	if (v === "c" || v === "low") return "C";
+	return null;
+}
 
 export default class TodoTxtRemindersPlugin extends Plugin {
 	settings!: TodoSettings;
@@ -40,6 +57,14 @@ export default class TodoTxtRemindersPlugin extends Plugin {
 		});
 
 		this.addSettingTab(new TodoSettingTab(this.app, this));
+
+		// obsidian://todo-txt-reminders?text=...&list=...&due=YYYY-MM-DD&
+		//   priority=high|med|low|A|B|C&link=...&rec=<RRULE>&modal=1
+		// With text present it creates the item directly; pass modal=1 (or omit
+		// text) to open the prefilled create modal instead.
+		this.registerObsidianProtocolHandler("todo-txt-reminders", (params) => {
+			void this.handleUri(params);
+		});
 
 		// Keep the view effectively unclosable: once it has been open, reopen
 		// it immediately if it gets closed.
@@ -89,6 +114,46 @@ export default class TodoTxtRemindersPlugin extends Plugin {
 
 	markViewOpen(): void {
 		this.keepOpen = true;
+	}
+
+	async handleUri(params: ObsidianProtocolData): Promise<void> {
+		const text = (params.text ?? "").trim();
+		const list =
+			(params.list ?? "").replace(/\s+/g, "") || this.settings.defaultList;
+		const prefill: Partial<Task> = {
+			text,
+			projects: [list],
+			due: params.due || null,
+			priority: parsePriority(params.priority),
+			link: params.link || null,
+			rec: params.rec || null,
+		};
+
+		const wantsModal = !!params.modal || text.length === 0;
+		if (wantsModal) {
+			const lists = deriveLists(await this.store.readTasks());
+			new TaskModal(this.app, lists, null, list, async (task) => {
+				await this.store.addTask(task);
+				this.refreshViews();
+			}, prefill).open();
+			return;
+		}
+
+		const task: Task = {
+			completed: false,
+			completionDate: null,
+			creationDate: null, // stamped by the store
+			priority: prefill.priority ?? null,
+			text,
+			projects: [list],
+			due: prefill.due ?? null,
+			link: prefill.link ?? null,
+			rec: prefill.rec ?? null,
+			raw: "",
+		};
+		await this.store.addTask(task);
+		new Notice(`Reminder added to ${list}`);
+		this.refreshViews();
 	}
 
 	async activateView(): Promise<void> {

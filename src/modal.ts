@@ -48,20 +48,28 @@ export class TaskModal extends Modal {
 		lists: string[],
 		existing: Task | null,
 		defaultList: string | null,
-		onSubmit: (task: Task) => void
+		onSubmit: (task: Task) => void,
+		prefill?: Partial<Task>
 	) {
 		super(app);
 		this.lists = lists;
 		this.existing = existing;
 		this.onSubmit = onSubmit;
 
-		this.text = existing?.text ?? "";
-		this.due = existing?.due ?? null;
-		this.priority = existing?.priority ?? null;
-		this.link = existing?.link ?? null;
-		this.rec = existing ? parseRRule(existing.rec) : defaultRecState();
+		// `prefill` seeds a *new* item's fields (e.g. from an Obsidian URI); it
+		// does not switch the modal into edit mode the way `existing` does.
+		this.text = existing?.text ?? prefill?.text ?? "";
+		this.due = existing?.due ?? prefill?.due ?? null;
+		this.priority = existing?.priority ?? prefill?.priority ?? null;
+		this.link = existing?.link ?? prefill?.link ?? null;
+		this.rec = existing
+			? parseRRule(existing.rec)
+			: prefill?.rec
+				? parseRRule(prefill.rec)
+				: defaultRecState();
 
-		const firstProject = existing?.projects[0] ?? defaultList ?? "";
+		const firstProject =
+			existing?.projects[0] ?? prefill?.projects?.[0] ?? defaultList ?? "";
 		this.listChoice = firstProject && lists.includes(firstProject)
 			? firstProject
 			: firstProject
