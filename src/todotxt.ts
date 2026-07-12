@@ -123,19 +123,28 @@ export function todayStr(): string {
 
 // --- visibility / filtering ---------------------------------------------
 
-// Completed items are visible only on the day they were completed; the day
-// after, they disappear from all views.
-export function isVisible(t: Task, today: string): boolean {
+// Completed items are visible only on the day they were completed (unless
+// showCompletedToday is off, hiding them immediately); the day after, they
+// disappear from all views regardless.
+export function isVisible(
+	t: Task,
+	today: string,
+	showCompletedToday: boolean
+): boolean {
 	if (!t.completed) return true;
-	return t.completionDate === today;
+	return showCompletedToday && t.completionDate === today;
 }
 
-// Today view = due <= today AND (not done, or completed today).
-export function inToday(t: Task, today: string): boolean {
+// Today view = due <= today AND (not done, or completed today when shown).
+export function inToday(
+	t: Task,
+	today: string,
+	showCompletedToday: boolean
+): boolean {
 	if (!t.due) return false;
 	if (t.due > today) return false;
 	if (!t.completed) return true;
-	return t.completionDate === today;
+	return showCompletedToday && t.completionDate === today;
 }
 
 export function isPastDue(t: Task, today: string): boolean {

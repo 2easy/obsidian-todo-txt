@@ -137,8 +137,9 @@ export class TodoView extends ItemView {
 				(rt) => rt.task.projects.includes(name) && !rt.task.completed
 			).length;
 
+		const showCompletedToday = this.plugin.settings.showCompletedToday;
 		const todayCount = tasks.filter(
-			(rt) => inToday(rt.task, today) && !rt.task.completed
+			(rt) => inToday(rt.task, today, showCompletedToday) && !rt.task.completed
 		).length;
 		const stToday = this.styleFor(TODAY); // normalizes to "today"
 		this.railEl.appendChild(
@@ -245,14 +246,20 @@ export class TodoView extends ItemView {
 				(!this.todayFilterPriority ||
 					rt.task.priority === this.todayFilterPriority));
 
-		// Top group: active + completed-today, in file order.
+		const showCompletedToday = this.plugin.settings.showCompletedToday;
+
+		// Top group: active + completed-today (if shown), in file order.
 		const shown = isToday
-			? tasks.filter((rt) => inToday(rt.task, today) && matchesFilter(rt))
+			? tasks.filter(
+					(rt) =>
+						inToday(rt.task, today, showCompletedToday) && matchesFilter(rt)
+			  )
 			: tasks.filter(
-					(rt) => belongs(rt) && isVisible(rt.task, today)
+					(rt) => belongs(rt) && isVisible(rt.task, today, showCompletedToday)
 			  );
 
-		// Past group: completed on an earlier day, freshest completion first.
+		// Past group: completed on an earlier day (or today, if today's
+		// completions are hidden from the top group), freshest first.
 		const past = this.showCompleted
 			? tasks
 					.filter(
@@ -261,7 +268,8 @@ export class TodoView extends ItemView {
 							matchesFilter(rt) &&
 							rt.task.completed &&
 							!!rt.task.completionDate &&
-							rt.task.completionDate < today
+							(rt.task.completionDate < today ||
+								(!showCompletedToday && rt.task.completionDate === today))
 					)
 					.sort((a, b) =>
 						(b.task.completionDate ?? "").localeCompare(

@@ -18,6 +18,7 @@ export interface TodoSettings {
 	defaultList: string; // pre-selected list for new items; always pinned
 	newItemHotkey: string; // normalized hotkey, e.g. "Meta+N"; "" disables
 	openOnStartup: boolean;
+	showCompletedToday: boolean; // if off, tasks hide as soon as they're completed
 	listStyles: ListStyle[];
 }
 
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: TodoSettings = {
 	defaultList: "Inbox",
 	newItemHotkey: "",
 	openOnStartup: true,
+	showCompletedToday: true,
 	listStyles: [
 		{ name: "Today", color: "#4a90e2", icon: "calendar-clock" },
 		{ name: "Inbox", color: "#43a047", icon: "inbox" },
@@ -89,6 +91,21 @@ export class TodoSettingTab extends PluginSettingTab {
 					this.plugin.settings.openOnStartup = v;
 					await this.plugin.saveSettings();
 				})
+			);
+
+		new Setting(containerEl)
+			.setName("Show tasks completed today")
+			.setDesc(
+				"When off, a task disappears from its list as soon as it's marked complete (still recoverable via the eye toggle)."
+			)
+			.addToggle((t) =>
+				t
+					.setValue(this.plugin.settings.showCompletedToday)
+					.onChange(async (v) => {
+						this.plugin.settings.showCompletedToday = v;
+						await this.plugin.saveSettings();
+						this.plugin.refreshViews();
+					})
 			);
 
 		new Setting(containerEl)
