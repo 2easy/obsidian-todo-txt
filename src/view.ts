@@ -55,6 +55,7 @@ export class TodoView extends ItemView {
 	private selected: string = TODAY;
 	private drag: DragState | null = null;
 	private showCompleted = false; // reveal items completed before today
+	private todayFilterList: string | null = null; // filter Today to one list
 
 	private railEl!: HTMLElement;
 	private panelEl!: HTMLElement;
@@ -258,6 +259,27 @@ export class TodoView extends ItemView {
 			void this.refresh();
 		});
 
+		// Active list filter for Today: click anywhere on it to clear.
+		if (isToday && this.todayFilterList) {
+			const filterList = this.todayFilterList;
+			const pill = left.createSpan({ cls: "todo-list-tag todo-filter-pill" });
+			const fst = this.styleFor(filterList);
+			if (fst?.icon) {
+				const ic = pill.createSpan({ cls: "todo-list-tag-icon" });
+				setIcon(ic, fst.icon);
+				if (fst.color) ic.style.color = fst.color;
+			}
+			pill.createSpan({ text: humanizeProject(filterList) });
+			if (fst?.color) pill.style.borderColor = fst.color;
+			const x = pill.createSpan({ cls: "todo-list-tag-icon" });
+			setIcon(x, "x");
+			pill.setAttr("aria-label", `Clear filter: ${humanizeProject(filterList)}`);
+			pill.addEventListener("click", () => {
+				this.todayFilterList = null;
+				void this.refresh();
+			});
+		}
+
 		// Delete-list icon (project lists only; Today can't be deleted).
 		if (!isToday) {
 			const list = this.selected;
@@ -286,7 +308,8 @@ export class TodoView extends ItemView {
 		setIcon(add, "plus");
 		add.setAttr("aria-label", "New task");
 		add.addEventListener("click", () => {
-			void this.openCreate(isToday ? null : this.selected, isToday);
+			const preset = isToday ? this.todayFilterList : this.selected;
+			void this.openCreate(preset, isToday);
 		});
 
 		// Membership of a task in the current view, ignoring completion state.
@@ -295,9 +318,15 @@ export class TodoView extends ItemView {
 				? !!rt.task.due && rt.task.due <= today
 				: rt.task.projects.includes(this.selected);
 
+		// In Today, an optional list filter narrows both groups below.
+		const matchesFilter = (rt: RenderTask) =>
+			!isToday ||
+			!this.todayFilterList ||
+			rt.task.projects.includes(this.todayFilterList);
+
 		// Top group: active + completed-today, in file order.
 		const shown = isToday
-			? tasks.filter((rt) => inToday(rt.task, today))
+			? tasks.filter((rt) => inToday(rt.task, today) && matchesFilter(rt))
 			: tasks.filter(
 					(rt) => belongs(rt) && isVisible(rt.task, today)
 			  );
@@ -308,6 +337,7 @@ export class TodoView extends ItemView {
 					.filter(
 						(rt) =>
 							belongs(rt) &&
+							matchesFilter(rt) &&
 							rt.task.completed &&
 							!!rt.task.completionDate &&
 							rt.task.completionDate < today
@@ -394,6 +424,12 @@ export class TodoView extends ItemView {
 				}
 				tag.createSpan({ text: humanizeProject(project) });
 				if (st?.color) tag.style.borderColor = st.color;
+				tag.addEventListener("click", (e) => {
+					e.stopPropagation();
+					this.todayFilterList =
+						this.todayFilterList === project ? null : project;
+					void this.refresh();
+				});
 			}
 		}
 		if (t.due) {

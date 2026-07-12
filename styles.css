@@ -209,6 +209,15 @@
 	border: 1px solid transparent;
 	background: var(--background-modifier-border);
 	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.todo-list-tag:hover {
+	color: var(--text-normal);
+}
+
+.todo-filter-pill {
+	margin-left: 4px;
 }
 
 .todo-list-tag-icon {
