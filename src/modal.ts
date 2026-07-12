@@ -248,7 +248,7 @@ export class TaskModal extends Modal {
 			raw: this.existing?.raw ?? "",
 		};
 
-		this.onSubmit(task);
+		void this.onSubmit(task);
 		this.close();
 	}
 
@@ -294,24 +294,20 @@ export class DeleteListModal extends Modal {
 			b.setButtonText("Cancel").onClick(() => this.close());
 			cancelBtn = b.buttonEl;
 		});
-		row.addButton((b) =>
-			b
-				.setButtonText("Remove tag from items")
-				.setDestructive()
-				.onClick(async () => {
-					await this.onRemoveTag();
-					this.close();
-				})
-		);
-		row.addButton((b) =>
-			b
-				.setButtonText("Delete all items")
-				.setDestructive()
-				.onClick(async () => {
-					await this.onDeleteAll();
-					this.close();
-				})
-		);
+		row.addButton((b) => {
+			b.setButtonText("Remove tag from items").onClick(async () => {
+				await this.onRemoveTag();
+				this.close();
+			});
+			b.buttonEl.addClass("mod-warning");
+		});
+		row.addButton((b) => {
+			b.setButtonText("Delete all items").onClick(async () => {
+				await this.onDeleteAll();
+				this.close();
+			});
+			b.buttonEl.addClass("mod-warning");
+		});
 
 		// Enter cancels too (Esc already closes the modal by default).
 		contentEl.addEventListener(
