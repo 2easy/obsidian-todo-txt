@@ -286,7 +286,7 @@ export class TodoView extends ItemView {
 		setIcon(add, "plus");
 		add.setAttr("aria-label", "New task");
 		add.addEventListener("click", () => {
-			void this.openCreate(isToday ? null : this.selected);
+			void this.openCreate(isToday ? null : this.selected, isToday);
 		});
 
 		// Membership of a task in the current view, ignoring completion state.
@@ -503,14 +503,27 @@ export class TodoView extends ItemView {
 		return row;
 	}
 
-	private async openCreate(list: string | null): Promise<void> {
+	private async openCreate(
+		list: string | null,
+		dueToday = false
+	): Promise<void> {
 		const tasks = await this.plugin.store.readTasks();
 		const lists = deriveLists(tasks);
 		const preset = list ?? this.plugin.settings.defaultList;
-		new TaskModal(this.app, lists, null, preset, async (task) => {
-			await this.plugin.store.addTask(task);
-			await this.refresh();
-		}).open();
+		// Adding from Today defaults the due date to today so the item lands
+		// in this view.
+		const prefill = dueToday ? { due: todayStr() } : undefined;
+		new TaskModal(
+			this.app,
+			lists,
+			null,
+			preset,
+			async (task) => {
+				await this.plugin.store.addTask(task);
+				await this.refresh();
+			},
+			prefill
+		).open();
 	}
 
 	private async openEdit(rt: RenderTask): Promise<void> {
