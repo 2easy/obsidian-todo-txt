@@ -133,6 +133,24 @@
 	height: 15px;
 }
 
+.todo-copy-list {
+	display: inline-flex;
+	align-items: center;
+	cursor: pointer;
+	color: var(--text-faint);
+	opacity: 0.6;
+}
+
+.todo-copy-list:hover {
+	color: var(--text-muted);
+	opacity: 1;
+}
+
+.todo-copy-list svg {
+	width: 15px;
+	height: 15px;
+}
+
 /* Past-completed group: separated and dimmed to mark it as old. */
 .todo-past {
 	margin-top: 16px;

@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, setIcon } from "obsidian";
+import { ItemView, Menu, Notice, WorkspaceLeaf, setIcon } from "obsidian";
 import type NudgePlugin from "../main";
 import { RenderTask, deriveLists } from "./store";
 import {
@@ -231,6 +231,45 @@ export class TodoView extends ItemView {
 		this.panelEl.empty();
 		const isToday = this.selected === TODAY;
 
+		// Membership of a task in the current view, ignoring completion state.
+		const belongs = (rt: RenderTask) =>
+			isToday
+				? !!rt.task.due && rt.task.due <= today
+				: rt.task.projects.includes(this.selected);
+
+		// In Today, optional list/priority filters narrow both groups below.
+		const matchesFilter = (rt: RenderTask) =>
+			!isToday ||
+			((!this.todayFilterList ||
+				rt.task.projects.includes(this.todayFilterList)) &&
+				(!this.todayFilterPriority ||
+					rt.task.priority === this.todayFilterPriority));
+
+		// Top group: active + completed-today, in file order.
+		const shown = isToday
+			? tasks.filter((rt) => inToday(rt.task, today) && matchesFilter(rt))
+			: tasks.filter(
+					(rt) => belongs(rt) && isVisible(rt.task, today)
+			  );
+
+		// Past group: completed on an earlier day, freshest completion first.
+		const past = this.showCompleted
+			? tasks
+					.filter(
+						(rt) =>
+							belongs(rt) &&
+							matchesFilter(rt) &&
+							rt.task.completed &&
+							!!rt.task.completionDate &&
+							rt.task.completionDate < today
+					)
+					.sort((a, b) =>
+						(b.task.completionDate ?? "").localeCompare(
+							a.task.completionDate ?? ""
+						)
+					)
+			: [];
+
 		const header = this.panelEl.createDiv({ cls: "todo-header" });
 		const left = header.createDiv({ cls: "todo-header-left" });
 
@@ -319,6 +358,44 @@ export class TodoView extends ItemView {
 			});
 		}
 
+		// Copy the currently visible items (respects filters/showCompleted).
+		const copyList = left.createSpan({ cls: "todo-copy-list" });
+		setIcon(copyList, "clipboard-list");
+		copyList.setAttr("aria-label", "Copy list");
+		copyList.addEventListener("click", (e) => {
+			const visible = [...shown, ...past];
+			if (visible.length === 0) {
+				new Notice("Nothing to copy");
+				return;
+			}
+			const menu = new Menu();
+			menu.addItem((item) =>
+				item.setTitle("Plain text").onClick(() => {
+					this.copyVisible(visible, (rt) =>
+						rt.task.link
+							? `${rt.task.text}: ${rt.task.link}`
+							: rt.task.text
+					);
+				})
+			);
+			menu.addItem((item) =>
+				item.setTitle("Markdown checklist").onClick(() => {
+					this.copyVisible(visible, (rt) => {
+						const text = rt.task.link
+							? `[${rt.task.text}](${rt.task.link})`
+							: rt.task.text;
+						return `- [${rt.task.completed ? "x" : " "}] ${text}`;
+					});
+				})
+			);
+			menu.addItem((item) =>
+				item.setTitle("Todo.txt syntax").onClick(() => {
+					this.copyVisible(visible, (rt) => rt.task.raw);
+				})
+			);
+			menu.showAtMouseEvent(e);
+		});
+
 		// Add button on every view. In Today the modal opens with no preset
 		// list so the user picks/creates one; in a project view it's preset.
 		const add = header.createEl("button", { cls: "todo-add-btn" });
@@ -328,45 +405,6 @@ export class TodoView extends ItemView {
 			const preset = isToday ? this.todayFilterList : this.selected;
 			void this.openCreate(preset, isToday);
 		});
-
-		// Membership of a task in the current view, ignoring completion state.
-		const belongs = (rt: RenderTask) =>
-			isToday
-				? !!rt.task.due && rt.task.due <= today
-				: rt.task.projects.includes(this.selected);
-
-		// In Today, optional list/priority filters narrow both groups below.
-		const matchesFilter = (rt: RenderTask) =>
-			!isToday ||
-			((!this.todayFilterList ||
-				rt.task.projects.includes(this.todayFilterList)) &&
-				(!this.todayFilterPriority ||
-					rt.task.priority === this.todayFilterPriority));
-
-		// Top group: active + completed-today, in file order.
-		const shown = isToday
-			? tasks.filter((rt) => inToday(rt.task, today) && matchesFilter(rt))
-			: tasks.filter(
-					(rt) => belongs(rt) && isVisible(rt.task, today)
-			  );
-
-		// Past group: completed on an earlier day, freshest completion first.
-		const past = this.showCompleted
-			? tasks
-					.filter(
-						(rt) =>
-							belongs(rt) &&
-							matchesFilter(rt) &&
-							rt.task.completed &&
-							!!rt.task.completionDate &&
-							rt.task.completionDate < today
-					)
-					.sort((a, b) =>
-						(b.task.completionDate ?? "").localeCompare(
-							a.task.completionDate ?? ""
-						)
-					)
-			: [];
 
 		const listEl = this.panelEl.createDiv({ cls: "todo-list" });
 		if (shown.length === 0 && past.length === 0) {
@@ -504,6 +542,14 @@ export class TodoView extends ItemView {
 				window.open(t.link!, "_blank");
 			});
 		}
+		const copy = actions.createEl("button", { cls: "todo-action todo-hover" });
+		setIcon(copy, "clipboard-copy");
+		copy.setAttr("aria-label", "Copy text");
+		copy.addEventListener("click", (e) => {
+			e.stopPropagation();
+			void navigator.clipboard.writeText(t.text);
+		});
+
 		const edit = actions.createEl("button", { cls: "todo-action todo-hover" });
 		setIcon(edit, "pencil");
 		edit.setAttr("aria-label", "Edit");
@@ -566,6 +612,14 @@ export class TodoView extends ItemView {
 		});
 
 		return row;
+	}
+
+	private copyVisible(
+		visible: RenderTask[],
+		format: (rt: RenderTask) => string
+	): void {
+		void navigator.clipboard.writeText(visible.map(format).join("\n"));
+		new Notice(`Copied ${visible.length} item${visible.length === 1 ? "" : "s"} to clipboard`);
 	}
 
 	private async openCreate(
