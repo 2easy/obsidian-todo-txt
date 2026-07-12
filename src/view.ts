@@ -547,7 +547,9 @@ export class TodoView extends ItemView {
 		copy.setAttr("aria-label", "Copy text");
 		copy.addEventListener("click", (e) => {
 			e.stopPropagation();
-			void navigator.clipboard.writeText(t.text);
+			void navigator.clipboard.writeText(
+				t.link ? `${t.text}: ${t.link}` : t.text
+			);
 		});
 
 		const edit = actions.createEl("button", { cls: "todo-action todo-hover" });
