@@ -56,6 +56,7 @@ export class TodoView extends ItemView {
 	private drag: DragState | null = null;
 	private showCompleted = false; // reveal items completed before today
 	private todayFilterList: string | null = null; // filter Today to one list
+	private todayFilterPriority: string | null = null; // filter Today to one priority
 
 	private railEl!: HTMLElement;
 	private panelEl!: HTMLElement;
@@ -280,6 +281,22 @@ export class TodoView extends ItemView {
 			});
 		}
 
+		// Active priority filter for Today: click anywhere on it to clear.
+		if (isToday && this.todayFilterPriority) {
+			const pri = this.todayFilterPriority;
+			const pill = left.createSpan({
+				cls: `todo-pri todo-pri-${pri} todo-filter-pill`,
+			});
+			pill.createSpan({ text: pri });
+			const x = pill.createSpan({ cls: "todo-list-tag-icon" });
+			setIcon(x, "x");
+			pill.setAttr("aria-label", `Clear priority filter: ${pri}`);
+			pill.addEventListener("click", () => {
+				this.todayFilterPriority = null;
+				void this.refresh();
+			});
+		}
+
 		// Delete-list icon (project lists only; Today can't be deleted).
 		if (!isToday) {
 			const list = this.selected;
@@ -318,11 +335,13 @@ export class TodoView extends ItemView {
 				? !!rt.task.due && rt.task.due <= today
 				: rt.task.projects.includes(this.selected);
 
-		// In Today, an optional list filter narrows both groups below.
+		// In Today, optional list/priority filters narrow both groups below.
 		const matchesFilter = (rt: RenderTask) =>
 			!isToday ||
-			!this.todayFilterList ||
-			rt.task.projects.includes(this.todayFilterList);
+			((!this.todayFilterList ||
+				rt.task.projects.includes(this.todayFilterList)) &&
+				(!this.todayFilterPriority ||
+					rt.task.priority === this.todayFilterPriority));
 
 		// Top group: active + completed-today, in file order.
 		const shown = isToday
@@ -401,10 +420,20 @@ export class TodoView extends ItemView {
 		});
 
 		if (t.priority) {
-			row.createSpan({
+			const pri = row.createSpan({
 				cls: `todo-pri todo-pri-${t.priority}`,
 				text: t.priority,
 			});
+			if (showList) {
+				const priority = t.priority;
+				pri.addClass("is-clickable");
+				pri.addEventListener("click", (e) => {
+					e.stopPropagation();
+					this.todayFilterPriority =
+						this.todayFilterPriority === priority ? null : priority;
+					void this.refresh();
+				});
+			}
 		}
 
 		const main = row.createDiv({ cls: "todo-item-main" });

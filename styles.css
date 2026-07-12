@@ -284,6 +284,21 @@
 	background: var(--color-blue);
 }
 
+.todo-pri.is-clickable {
+	cursor: pointer;
+}
+
+.todo-pri.is-clickable:hover {
+	opacity: 0.8;
+}
+
+.todo-pri.todo-filter-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	cursor: pointer;
+}
+
 .todo-actions {
 	display: flex;
 	align-items: center;
