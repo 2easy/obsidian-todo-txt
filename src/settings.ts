@@ -24,7 +24,7 @@ export interface TodoSettings {
 export const DEFAULT_SETTINGS: TodoSettings = {
 	path: "todo.txt",
 	defaultList: "Inbox",
-	newItemHotkey: "Meta+N",
+	newItemHotkey: "",
 	openOnStartup: true,
 	listStyles: [
 		{ name: "Today", color: "#4a90e2", icon: "calendar-clock" },
