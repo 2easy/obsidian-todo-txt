@@ -146,6 +146,31 @@ export class TodoStore {
 		await this.writeLines(lines);
 	}
 
+	// Remove a +project tag from every item that has it (items are kept).
+	async removeProjectTag(project: string): Promise<void> {
+		const lines = await this.readLines();
+		let changed = false;
+		for (let i = 0; i < lines.length; i++) {
+			if (!lines[i].trim()) continue;
+			const t = parseTask(lines[i]);
+			if (t.projects.includes(project)) {
+				t.projects = t.projects.filter((p) => p !== project);
+				lines[i] = serializeTask(t);
+				changed = true;
+			}
+		}
+		if (changed) await this.writeLines(lines);
+	}
+
+	// Permanently delete every line belonging to a +project tag.
+	async deleteListItems(project: string): Promise<void> {
+		const lines = await this.readLines();
+		const kept = lines.filter(
+			(line) => !line.trim() || !parseTask(line).projects.includes(project)
+		);
+		if (kept.length !== lines.length) await this.writeLines(kept);
+	}
+
 	// Physically reposition a line to sit before/after a target line.
 	async reorder(
 		srcRaw: string,

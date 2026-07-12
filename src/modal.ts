@@ -264,3 +264,72 @@ export class TaskModal extends Modal {
 		this.contentEl.empty();
 	}
 }
+
+// Confirmation for deleting a list, with three choices. Cancel is the default;
+// Enter and Esc both cancel and close.
+export class DeleteListModal extends Modal {
+	constructor(
+		app: App,
+		private listName: string,
+		private onRemoveTag: () => void | Promise<void>,
+		private onDeleteAll: () => void | Promise<void>
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl("h2", {
+			text: `Delete list "${humanizeProject(this.listName)}"?`,
+		});
+		contentEl.createEl("p", {
+			cls: "setting-item-description",
+			text: "This can't be undone in-app — rely on Obsidian's file history to recover.",
+		});
+
+		const row = new Setting(contentEl);
+		let cancelBtn: HTMLElement | null = null;
+		row.addButton((b) => {
+			b.setButtonText("Cancel").onClick(() => this.close());
+			cancelBtn = b.buttonEl;
+		});
+		row.addButton((b) =>
+			b
+				.setButtonText("Remove tag from items")
+				.setWarning()
+				.onClick(async () => {
+					await this.onRemoveTag();
+					this.close();
+				})
+		);
+		row.addButton((b) =>
+			b
+				.setButtonText("Delete all items")
+				.setWarning()
+				.onClick(async () => {
+					await this.onDeleteAll();
+					this.close();
+				})
+		);
+
+		// Enter cancels too (Esc already closes the modal by default).
+		contentEl.addEventListener(
+			"keydown",
+			(e) => {
+				if (e.key === "Enter") {
+					e.preventDefault();
+					e.stopPropagation();
+					this.close();
+				}
+			},
+			{ capture: true }
+		);
+
+		(cancelBtn as HTMLElement | null)?.focus();
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+	}
+}

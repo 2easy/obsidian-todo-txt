@@ -100,14 +100,37 @@
 .todo-eye {
 	display: inline-flex;
 	align-items: center;
-	justify-content: center;
-	padding: 4px;
 	cursor: pointer;
-	color: var(--text-muted);
+	color: var(--text-faint);
+	opacity: 0.6;
 }
 
 .todo-eye:hover {
-	color: var(--text-normal);
+	color: var(--text-muted);
+	opacity: 1;
+}
+
+.todo-eye svg {
+	width: 15px;
+	height: 15px;
+}
+
+.todo-trash {
+	display: inline-flex;
+	align-items: center;
+	cursor: pointer;
+	color: var(--text-faint);
+	opacity: 0.6;
+}
+
+.todo-trash:hover {
+	color: var(--text-error);
+	opacity: 1;
+}
+
+.todo-trash svg {
+	width: 15px;
+	height: 15px;
 }
 
 /* Past-completed group: separated and dimmed to mark it as old. */

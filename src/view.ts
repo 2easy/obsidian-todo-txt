@@ -9,7 +9,7 @@ import {
 	normalizeListName,
 	todayStr,
 } from "./todotxt";
-import { TaskModal } from "./modal";
+import { TaskModal, DeleteListModal } from "./modal";
 import type { ListStyle } from "./settings";
 
 export const VIEW_TYPE_TODO = "todo-txt-reminders-view";
@@ -240,7 +240,7 @@ export class TodoView extends ItemView {
 		});
 
 		// Toggle to reveal/hide items completed on an earlier day.
-		const eye = left.createEl("button", { cls: "todo-eye" });
+		const eye = left.createSpan({ cls: "todo-eye" });
 		setIcon(eye, this.showCompleted ? "eye-off" : "eye");
 		eye.setAttr(
 			"aria-label",
@@ -250,6 +250,28 @@ export class TodoView extends ItemView {
 			this.showCompleted = !this.showCompleted;
 			void this.refresh();
 		});
+
+		// Delete-list icon (project lists only; Today can't be deleted).
+		if (!isToday) {
+			const list = this.selected;
+			const del = left.createSpan({ cls: "todo-trash" });
+			setIcon(del, "trash-2");
+			del.setAttr("aria-label", "Delete list");
+			del.addEventListener("click", () => {
+				new DeleteListModal(
+					this.app,
+					list,
+					async () => {
+						await this.plugin.store.removeProjectTag(list);
+						await this.refresh();
+					},
+					async () => {
+						await this.plugin.store.deleteListItems(list);
+						await this.refresh();
+					}
+				).open();
+			});
+		}
 
 		// Add button on every view. In Today the modal opens with no preset
 		// list so the user picks/creates one; in a project view it's preset.
