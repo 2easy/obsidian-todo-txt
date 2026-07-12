@@ -3,8 +3,8 @@
 	"name": "Nudge",
 	"version": "0.1.0",
 	"minAppVersion": "1.5.0",
-	"description": "A task manager for Obsidian, backed by a single todo.txt file.",
+	"description": "Manage tasks in a single plain-text todo.txt file, with lists, due dates, priorities, and recurrence.",
 	"author": "2easy",
-	"authorUrl": "",
+	"authorUrl": "https://github.com/2easy",
 	"isDesktopOnly": true
 }

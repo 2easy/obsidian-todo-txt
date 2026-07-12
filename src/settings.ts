@@ -116,11 +116,12 @@ export class TodoSettingTab extends PluginSettingTab {
 	}
 
 	private renderListStyles(containerEl: HTMLElement): void {
-		containerEl.createEl("h3", { text: "List styles" });
-		containerEl.createEl("p", {
-			cls: "setting-item-description",
-			text: "Give a list a custom color and icon. Matched by name ignoring spaces and case (e.g. \"Home Chores\" matches HomeChores).",
-		});
+		new Setting(containerEl)
+			.setName("List styles")
+			.setDesc(
+				'Give a list a custom color and icon. Matched by name ignoring spaces and case (e.g. "Home Chores" matches HomeChores).'
+			)
+			.setHeading();
 
 		// Shared datalist of icon ids for the icon inputs.
 		const datalistId = "todo-icon-datalist";

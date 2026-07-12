@@ -45,13 +45,13 @@ export default class NudgePlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "open-nudge",
-			name: "Open Nudge",
+			id: "open-task-list",
+			name: "Open task list",
 			callback: () => void this.activateView(),
 		});
 
 		this.addCommand({
-			id: "new-nudge-task",
+			id: "new-task",
 			name: "New task",
 			callback: () => void this.newTask(),
 		});
