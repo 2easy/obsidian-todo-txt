@@ -1,7 +1,9 @@
-# obsidian-todo-txt
+# Nudge
 
-A Reminders.app-style task manager for Obsidian, backed by a single
-[`todo.txt`](http://todotxt.org/) file. Desktop-only (macOS).
+A task manager for Obsidian, backed by a single
+[`todo.txt`](http://todotxt.org/) file. Desktop-only (macOS). Passive by
+design — items just surface in **Today** when their due date arrives; there are
+no OS notifications.
 
 See [SPEC.md](./SPEC.md) for the full design.
 
@@ -27,27 +29,27 @@ See [SPEC.md](./SPEC.md) for the full design.
 2. Copy/symlink the plugin folder into your vault's plugins directory so it
    contains `manifest.json`, `main.js`, and `styles.css`:
    ```bash
-   ln -s "$(pwd)" "<YourVault>/.obsidian/plugins/todo-txt-reminders"
+   ln -s "$(pwd)" "<YourVault>/.obsidian/plugins/nudge"
    ```
 3. In Obsidian: **Settings → Community plugins**, disable Restricted mode, then
-   enable **Todo.txt Reminders**.
+   enable **Nudge**.
 
 ## Adding items
 
 - The **+** button in the panel header (on every view, including Today).
-- The **New reminder** ribbon icon or command.
+- The **New task** ribbon icon or command.
 - A configurable global **hotkey** (default `Cmd+N`), set in the plugin
   settings. It uses a capture-phase listener so it can override Obsidian's own
   binding for that combo.
-- Double-click an item row to edit it.
+- Single-click a row to complete/uncomplete it; use the pencil button to edit.
 
 ## Creating items via Obsidian URI
 
 The plugin registers a protocol handler so external tools, shortcuts, or links
-can create reminders:
+can create tasks:
 
 ```
-obsidian://todo-txt-reminders?text=Buy%20milk&list=Groceries&due=2026-07-20&priority=high&link=https%3A%2F%2Fexample.com
+obsidian://nudge?text=Buy%20milk&list=Groceries&due=2026-07-20&priority=high&link=https%3A%2F%2Fexample.com
 ```
 
 | Arg        | Maps to        | Notes |

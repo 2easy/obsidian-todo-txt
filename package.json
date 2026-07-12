@@ -1,7 +1,7 @@
 {
-	"name": "todo-txt-reminders",
+	"name": "nudge",
 	"version": "0.1.0",
-	"description": "A Reminders.app-style task manager backed by a single todo.txt file.",
+	"description": "A task manager for Obsidian, backed by a single todo.txt file.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",

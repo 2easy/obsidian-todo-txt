@@ -22,7 +22,7 @@ function parsePriority(raw: string | undefined): Priority {
 	return null;
 }
 
-export default class TodoTxtRemindersPlugin extends Plugin {
+export default class NudgePlugin extends Plugin {
 	settings!: TodoSettings;
 	store!: TodoStore;
 	private keepOpen = false;
@@ -36,33 +36,33 @@ export default class TodoTxtRemindersPlugin extends Plugin {
 			(leaf: WorkspaceLeaf) => new TodoView(leaf, this)
 		);
 
-		this.addRibbonIcon("list-todo", "Open Todo.txt Reminders", () => {
+		this.addRibbonIcon("list-todo", "Open Nudge", () => {
 			void this.activateView();
 		});
 
-		this.addRibbonIcon("plus-circle", "New reminder", () => {
-			void this.newReminder();
+		this.addRibbonIcon("plus-circle", "New task", () => {
+			void this.newTask();
 		});
 
 		this.addCommand({
-			id: "open-todo-txt-reminders",
-			name: "Open Todo.txt Reminders",
+			id: "open-nudge",
+			name: "Open Nudge",
 			callback: () => void this.activateView(),
 		});
 
 		this.addCommand({
-			id: "new-todo-txt-reminder",
-			name: "New reminder",
-			callback: () => void this.newReminder(),
+			id: "new-nudge-task",
+			name: "New task",
+			callback: () => void this.newTask(),
 		});
 
 		this.addSettingTab(new TodoSettingTab(this.app, this));
 
-		// obsidian://todo-txt-reminders?text=...&list=...&due=YYYY-MM-DD&
+		// obsidian://nudge?text=...&list=...&due=YYYY-MM-DD&
 		//   priority=high|med|low|A|B|C&link=...&rec=<RRULE>&modal=1
 		// With text present it creates the item directly; pass modal=1 (or omit
 		// text) to open the prefilled create modal instead.
-		this.registerObsidianProtocolHandler("todo-txt-reminders", (params) => {
+		this.registerObsidianProtocolHandler("nudge", (params) => {
 			void this.handleUri(params);
 		});
 
@@ -84,7 +84,7 @@ export default class TodoTxtRemindersPlugin extends Plugin {
 			})
 		);
 
-		// Configurable global shortcut to open the new-reminder window. Uses a
+		// Configurable global shortcut to open the new-task window. Uses a
 		// capture-phase listener so it can override Obsidian's own binding for
 		// the same combo (e.g. Cmd+N → New note).
 		this.registerDomEvent(
@@ -99,7 +99,7 @@ export default class TodoTxtRemindersPlugin extends Plugin {
 				e.preventDefault();
 				e.stopPropagation();
 				e.stopImmediatePropagation();
-				void this.newReminder();
+				void this.newTask();
 			},
 			{ capture: true }
 		);
@@ -157,7 +157,7 @@ export default class TodoTxtRemindersPlugin extends Plugin {
 			raw: "",
 		};
 		await this.store.addTask(task);
-		new Notice(`Reminder added to ${list}`);
+		new Notice(`Added to ${list}`);
 		this.refreshViews();
 	}
 
@@ -175,7 +175,7 @@ export default class TodoTxtRemindersPlugin extends Plugin {
 	// Open the create modal from anywhere (command / ribbon), independent of
 	// whether a view is focused. Presets the list to the active view's
 	// selection when it's a real project list.
-	async newReminder(): Promise<void> {
+	async newTask(): Promise<void> {
 		const tasks = await this.store.readTasks();
 		const lists = deriveLists(tasks);
 		// Preset to the focused view's selected project, else the default list.

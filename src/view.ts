@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf, setIcon } from "obsidian";
-import type TodoTxtRemindersPlugin from "../main";
+import type NudgePlugin from "../main";
 import { RenderTask, deriveLists } from "./store";
 import {
 	humanizeProject,
@@ -12,7 +12,7 @@ import {
 import { TaskModal, DeleteListModal } from "./modal";
 import type { ListStyle } from "./settings";
 
-export const VIEW_TYPE_TODO = "todo-txt-reminders-view";
+export const VIEW_TYPE_TODO = "nudge-view";
 const TODAY = " today"; // sentinel; sorts/handles distinctly from real lists
 
 // Brand marks shown in place of the generic link icon for recognized services.
@@ -43,7 +43,7 @@ interface DragState {
 }
 
 export class TodoView extends ItemView {
-	private plugin: TodoTxtRemindersPlugin;
+	private plugin: NudgePlugin;
 	private selected: string = TODAY;
 	private drag: DragState | null = null;
 	private showCompleted = false; // reveal items completed before today
@@ -51,7 +51,7 @@ export class TodoView extends ItemView {
 	private railEl!: HTMLElement;
 	private panelEl!: HTMLElement;
 
-	constructor(leaf: WorkspaceLeaf, plugin: TodoTxtRemindersPlugin) {
+	constructor(leaf: WorkspaceLeaf, plugin: NudgePlugin) {
 		super(leaf);
 		this.plugin = plugin;
 	}
@@ -61,7 +61,7 @@ export class TodoView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return "Todo.txt Reminders";
+		return "Nudge";
 	}
 
 	getIcon(): string {
@@ -277,7 +277,7 @@ export class TodoView extends ItemView {
 		// list so the user picks/creates one; in a project view it's preset.
 		const add = header.createEl("button", { cls: "todo-add-btn" });
 		setIcon(add, "plus");
-		add.setAttr("aria-label", "New reminder");
+		add.setAttr("aria-label", "New task");
 		add.addEventListener("click", () =>
 			this.openCreate(isToday ? null : this.selected)
 		);

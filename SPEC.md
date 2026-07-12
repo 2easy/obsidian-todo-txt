@@ -1,6 +1,6 @@
-# Obsidian Reminders Plugin — Spec
+# Nudge — Spec
 
-A Reminders.app clone built as an Obsidian plugin, backed by a single `todo.txt`-formatted
+Nudge is a task manager built as an Obsidian plugin, backed by a single `todo.txt`-formatted
 file. Built because installing third-party apps isn't allowed, but Obsidian (with community
 plugins enabled) already is.
 
@@ -9,7 +9,7 @@ plugins enabled) already is.
 - Obsidian community plugin, **not** a standalone binary.
 - **TypeScript + esbuild**, based on the official Obsidian sample plugin template.
 - **Desktop-only, macOS-only.** No mobile support.
-- Loaded locally as an unpacked dev plugin (`VaultFolder/.obsidian/plugins/reminders/`) —
+- Loaded locally as an unpacked dev plugin (`VaultFolder/.obsidian/plugins/nudge/`) —
   no store listing, no signing/notarization needed.
 - Runs inside Obsidian's own window/process, so Cmd+Tab, Dock icon, and window sizing are
   inherited for free from Obsidian itself — nothing custom needed there.
@@ -76,7 +76,7 @@ All fields are entered through a structured modal — no hand-typed todo.txt syn
 | List | dropdown of existing lists + "add new" | `+ProjectName` |
 | Due date | date picker | `due:YYYY-MM-DD` |
 | Priority | select: None / Low / Med / High | `(C)` / `(B)` / `(A)` / none |
-| Link | URL input | `link:<url>`, rendered as a clickable 🔗 button in the list (fixes Reminders.app's poor link-click UX) |
+| Link | URL input | `link:<url>`, rendered as a clickable 🔗 button in the list (quick one-click access to the associated link) |
 | Recurrence | structured picker (see below) | `rec:<RRULE>` |
 
 - **Edit** opens the same modal, pre-filled with the item's current values.

@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting, getIconIds } from "obsidian";
-import type TodoTxtRemindersPlugin from "../main";
+import type NudgePlugin from "../main";
 import {
 	eventToHotkey,
 	hotkeyToDisplay,
@@ -33,9 +33,9 @@ export const DEFAULT_SETTINGS: TodoSettings = {
 };
 
 export class TodoSettingTab extends PluginSettingTab {
-	plugin: TodoTxtRemindersPlugin;
+	plugin: NudgePlugin;
 
-	constructor(app: App, plugin: TodoTxtRemindersPlugin) {
+	constructor(app: App, plugin: NudgePlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -61,7 +61,7 @@ export class TodoSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Default list")
 			.setDesc(
-				"List pre-selected when creating a new reminder. Always pinned in the sidebar (second, under Today) even when it has no items."
+				"List pre-selected when creating a new task. Always pinned in the sidebar (second, under Today) even when it has no items."
 			)
 			.addText((text) =>
 				text
@@ -77,7 +77,7 @@ export class TodoSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Open on startup")
-			.setDesc("Open and focus the Todo.txt Reminders view when Obsidian starts.")
+			.setDesc("Open and focus the Nudge view when Obsidian starts.")
 			.addToggle((t) =>
 				t.setValue(this.plugin.settings.openOnStartup).onChange(async (v) => {
 					this.plugin.settings.openOnStartup = v;
@@ -86,9 +86,9 @@ export class TodoSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("New reminder hotkey")
+			.setName("New task hotkey")
 			.setDesc(
-				"Shortcut to open the new reminder window from anywhere. Click the field and press the combination; press Backspace to clear. Overrides Obsidian's default binding for that combo."
+				"Shortcut to open the new-task window from anywhere. Click the field and press the combination; press Backspace to clear. Overrides Obsidian's default binding for that combo."
 			)
 			.addText((text) => {
 				text.inputEl.addClass("todo-hotkey-input");

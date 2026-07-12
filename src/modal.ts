@@ -82,7 +82,7 @@ export class TaskModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.createEl("h2", {
-			text: this.existing ? "Edit reminder" : "New reminder",
+			text: this.existing ? "Edit task" : "New task",
 		});
 
 		new Setting(contentEl).setName("Text").addText((t) =>
