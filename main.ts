@@ -108,7 +108,7 @@ export default class NudgePlugin extends Plugin {
 		// external agent rewriting todo.txt).
 		this.registerEvent(
 			this.app.vault.on("modify", (file: TAbstractFile) => {
-				if (file.path === this.settings.path) this.refreshViews();
+				if (file.path === this.store.getPath()) this.refreshViews();
 			})
 		);
 	}

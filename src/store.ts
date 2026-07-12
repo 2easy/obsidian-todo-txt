@@ -1,8 +1,8 @@
-// File-backed store. There is no long-lived cache: every operation reads the
-// file fresh, applies one change, and writes it back — keeping the race window
-// for external edits to milliseconds (see SPEC.md § Concurrency).
+// File-backed store. There is no long-lived cache: reads pull the file fresh,
+// and every mutation goes through Vault.process(), which reads-modifies-writes
+// atomically (see SPEC.md § Concurrency).
 
-import { App, TFile } from "obsidian";
+import { App, TFile, normalizePath } from "obsidian";
 import { parseTask, serializeTask, Task, todayStr } from "./todotxt";
 import { nextOccurrence } from "./recurrence";
 
@@ -12,10 +12,14 @@ export interface RenderTask {
 }
 
 export class TodoStore {
-	constructor(private app: App, private path: string) {}
+	private path: string;
+
+	constructor(private app: App, path: string) {
+		this.path = normalizePath(path);
+	}
 
 	setPath(p: string): void {
-		this.path = p;
+		this.path = normalizePath(p);
 	}
 
 	getPath(): string {
@@ -40,9 +44,17 @@ export class TodoStore {
 		return content.length ? content.split("\n") : [];
 	}
 
-	private async writeLines(lines: string[]): Promise<void> {
+	// Atomic read-modify-write. The transform receives the current lines and
+	// returns the new lines, or null to leave the file untouched.
+	private async processLines(
+		fn: (lines: string[]) => string[] | null
+	): Promise<void> {
 		const f = await this.getFile();
-		await this.app.vault.modify(f, lines.join("\n"));
+		await this.app.vault.process(f, (data) => {
+			const lines = data.length ? data.split("\n") : [];
+			const result = fn(lines);
+			return result === null ? data : result.join("\n");
+		});
 	}
 
 	async readTasks(): Promise<RenderTask[]> {
@@ -67,72 +79,76 @@ export class TodoStore {
 
 	async addTask(t: Task): Promise<void> {
 		if (!t.creationDate) t.creationDate = todayStr();
-		const lines = await this.readLines();
-		lines.push(serializeTask(t));
-		await this.writeLines(lines);
+		await this.processLines((lines) => {
+			lines.push(serializeTask(t));
+			return lines;
+		});
 	}
 
 	async updateTask(rawLine: string, index: number, t: Task): Promise<void> {
-		const lines = await this.readLines();
-		const i = this.locate(lines, rawLine, index);
-		if (i < 0) return;
-		lines[i] = serializeTask(t);
-		await this.writeLines(lines);
+		await this.processLines((lines) => {
+			const i = this.locate(lines, rawLine, index);
+			if (i < 0) return null;
+			lines[i] = serializeTask(t);
+			return lines;
+		});
 	}
 
 	async deleteTask(rawLine: string, index: number): Promise<void> {
-		const lines = await this.readLines();
-		const i = this.locate(lines, rawLine, index);
-		if (i < 0) return;
-		lines.splice(i, 1);
-		await this.writeLines(lines);
+		await this.processLines((lines) => {
+			const i = this.locate(lines, rawLine, index);
+			if (i < 0) return null;
+			lines.splice(i, 1);
+			return lines;
+		});
 	}
 
 	// Toggle completion. Completing a recurring item also spawns the next
 	// occurrence (anchored on the original due date) as a new line above it.
 	async toggleComplete(rawLine: string, index: number): Promise<void> {
-		const lines = await this.readLines();
-		const i = this.locate(lines, rawLine, index);
-		if (i < 0) return;
-		const t = parseTask(lines[i]);
+		await this.processLines((lines) => {
+			const i = this.locate(lines, rawLine, index);
+			if (i < 0) return null;
+			const t = parseTask(lines[i]);
 
-		if (t.completed) {
-			t.completed = false;
-			t.completionDate = null;
-			lines[i] = serializeTask(t);
-			await this.writeLines(lines);
-			return;
-		}
-
-		const recurring = !!t.rec;
-		const anchor = t.due ?? todayStr();
-		t.completed = true;
-		t.completionDate = todayStr();
-		lines[i] = serializeTask(t);
-
-		if (recurring && t.rec) {
-			const nd = nextOccurrence(t.rec, anchor);
-			if (nd) {
-				const next = parseTask(rawLine); // fresh, still-open copy
-				next.completed = false;
-				next.completionDate = null;
-				next.creationDate = todayStr(); // spawned now
-				next.due = nd;
-				lines.splice(i, 0, serializeTask(next));
+			if (t.completed) {
+				t.completed = false;
+				t.completionDate = null;
+				lines[i] = serializeTask(t);
+				return lines;
 			}
-		}
-		await this.writeLines(lines);
+
+			const recurring = !!t.rec;
+			const anchor = t.due ?? todayStr();
+			t.completed = true;
+			t.completionDate = todayStr();
+			lines[i] = serializeTask(t);
+
+			if (recurring && t.rec) {
+				const nd = nextOccurrence(t.rec, anchor);
+				if (nd) {
+					const next = parseTask(rawLine); // fresh, still-open copy
+					next.completed = false;
+					next.completionDate = null;
+					next.creationDate = todayStr(); // spawned now
+					next.due = nd;
+					lines.splice(i, 0, serializeTask(next));
+				}
+			}
+			return lines;
+		});
 	}
 
 	// Rewrite the item's project membership to a single destination list.
 	async setProject(rawLine: string, index: number, project: string): Promise<void> {
-		const lines = await this.readLines();
-		const i = this.locate(lines, rawLine, index);
-		if (i < 0) return;
-		const t = parseTask(lines[i]);
-		t.projects = [project];
-		lines[i] = serializeTask(t);
-		await this.writeLines(lines);
+		await this.processLines((lines) => {
+			const i = this.locate(lines, rawLine, index);
+			if (i < 0) return null;
+			const t = parseTask(lines[i]);
+			t.projects = [project];
+			lines[i] = serializeTask(t);
+			return lines;
+		});
 	}
 
 	// Overwrite the due date to today (used when dragging into Today).
@@ -146,38 +162,41 @@ export class TodoStore {
 		index: number,
 		date: string | null
 	): Promise<void> {
-		const lines = await this.readLines();
-		const i = this.locate(lines, rawLine, index);
-		if (i < 0) return;
-		const t = parseTask(lines[i]);
-		t.due = date;
-		lines[i] = serializeTask(t);
-		await this.writeLines(lines);
+		await this.processLines((lines) => {
+			const i = this.locate(lines, rawLine, index);
+			if (i < 0) return null;
+			const t = parseTask(lines[i]);
+			t.due = date;
+			lines[i] = serializeTask(t);
+			return lines;
+		});
 	}
 
 	// Remove a +project tag from every item that has it (items are kept).
 	async removeProjectTag(project: string): Promise<void> {
-		const lines = await this.readLines();
-		let changed = false;
-		for (let i = 0; i < lines.length; i++) {
-			if (!lines[i].trim()) continue;
-			const t = parseTask(lines[i]);
-			if (t.projects.includes(project)) {
-				t.projects = t.projects.filter((p) => p !== project);
-				lines[i] = serializeTask(t);
-				changed = true;
+		await this.processLines((lines) => {
+			let changed = false;
+			for (let i = 0; i < lines.length; i++) {
+				if (!lines[i].trim()) continue;
+				const t = parseTask(lines[i]);
+				if (t.projects.includes(project)) {
+					t.projects = t.projects.filter((p) => p !== project);
+					lines[i] = serializeTask(t);
+					changed = true;
+				}
 			}
-		}
-		if (changed) await this.writeLines(lines);
+			return changed ? lines : null;
+		});
 	}
 
 	// Permanently delete every line belonging to a +project tag.
 	async deleteListItems(project: string): Promise<void> {
-		const lines = await this.readLines();
-		const kept = lines.filter(
-			(line) => !line.trim() || !parseTask(line).projects.includes(project)
-		);
-		if (kept.length !== lines.length) await this.writeLines(kept);
+		await this.processLines((lines) => {
+			const kept = lines.filter(
+				(line) => !line.trim() || !parseTask(line).projects.includes(project)
+			);
+			return kept.length !== lines.length ? kept : null;
+		});
 	}
 
 	// Physically reposition a line to sit before/after a target line.
@@ -188,21 +207,24 @@ export class TodoStore {
 		destIndex: number,
 		placeBefore: boolean
 	): Promise<void> {
-		const lines = await this.readLines();
-		const si = this.locate(lines, srcRaw, srcIndex);
-		if (si < 0) return;
-		const [moved] = lines.splice(si, 1);
+		await this.processLines((lines) => {
+			const si = this.locate(lines, srcRaw, srcIndex);
+			if (si < 0) return null;
+			const [moved] = lines.splice(si, 1);
 
-		let di = this.locate(lines, destRaw, destIndex > si ? destIndex - 1 : destIndex);
-		if (di < 0) {
-			// Target vanished — append to end.
-			lines.push(moved);
-			await this.writeLines(lines);
-			return;
-		}
-		const insertAt = placeBefore ? di : di + 1;
-		lines.splice(insertAt, 0, moved);
-		await this.writeLines(lines);
+			let di = this.locate(
+				lines,
+				destRaw,
+				destIndex > si ? destIndex - 1 : destIndex
+			);
+			if (di < 0) {
+				lines.push(moved); // target vanished — append to end
+				return lines;
+			}
+			const insertAt = placeBefore ? di : di + 1;
+			lines.splice(insertAt, 0, moved);
+			return lines;
+		});
 	}
 }
 
