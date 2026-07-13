@@ -125,7 +125,7 @@ export class TaskModal extends Modal {
 				this.newListInput = t.inputEl;
 				t
 					.setValue(this.newListName)
-					.setPlaceholder("ProjectName")
+					.setPlaceholder("List name")
 					.onChange((v) => (this.newListName = v.replace(/\s+/g, "")));
 			});
 		this.newListSetting.settingEl.toggle(this.listChoice === NEW_LIST);
@@ -179,6 +179,15 @@ export class TaskModal extends Modal {
 					.onClick(() => this.submit())
 			)
 			.addButton((b) => b.setButtonText("Cancel").onClick(() => this.close()));
+
+		// Enter submits the form from any field. Selects keep their native
+		// Enter handling; composition (IME) is left alone.
+		contentEl.addEventListener("keydown", (e) => {
+			if (e.key !== "Enter" || e.isComposing) return;
+			if (e.target instanceof HTMLSelectElement) return;
+			e.preventDefault();
+			this.submit();
+		});
 
 		// Opened via the new-list affordance: drop the cursor straight into the
 		// list-name field.
