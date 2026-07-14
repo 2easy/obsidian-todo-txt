@@ -89,12 +89,111 @@
 	margin: 0;
 }
 
+.todo-header-right {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
 .todo-add-btn {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	padding: 4px;
 	cursor: pointer;
+}
+
+/* Search: a circled magnifying glass that widens into an inline input. */
+.todo-search {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	flex: 0 0 auto;
+	box-sizing: border-box;
+	width: 26px;
+	height: 26px;
+	padding: 0 6px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 13px;
+	overflow: hidden;
+	color: var(--text-muted);
+	transition: width 180ms ease-out, padding 180ms ease-out;
+}
+
+.todo-search.is-collapsed {
+	cursor: pointer;
+	justify-content: center;
+	padding: 0;
+}
+
+.todo-search.is-collapsed:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.todo-search.is-open {
+	width: 220px;
+}
+
+.todo-search-icon {
+	display: inline-flex;
+	flex: 0 0 auto;
+}
+
+.todo-search-icon svg {
+	width: 14px;
+	height: 14px;
+}
+
+/* Bare input, like .todo-text-input: the pill supplies all the chrome. */
+.todo-search-input,
+.todo-search-input:focus,
+.todo-search-input:hover {
+	flex: 1;
+	min-width: 0;
+	background: transparent !important;
+	border: none !important;
+	border-radius: 0 !important;
+	box-shadow: none !important;
+	outline: none !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	height: auto;
+	font: inherit;
+	font-size: 0.85em;
+	color: var(--text-normal);
+}
+
+.todo-search-input::placeholder {
+	color: var(--text-faint);
+}
+
+.todo-search-clear {
+	display: inline-flex;
+	flex: 0 0 auto;
+	cursor: pointer;
+	color: var(--text-faint);
+}
+
+.todo-search-clear:hover {
+	color: var(--text-normal);
+}
+
+.todo-search-clear svg {
+	width: 13px;
+	height: 13px;
+}
+
+/* Fuzzy-match highlight: matched characters in the text, and the link button
+   when the match landed in the URL — same accent so both read as "matched". */
+.todo-search-match {
+	background: var(--text-highlight-bg);
+	border-radius: 2px;
+}
+
+.todo-search-match-link {
+	background: var(--text-highlight-bg);
+	border-radius: 4px;
 }
 
 .todo-eye {

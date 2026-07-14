@@ -18,6 +18,9 @@ See [SPEC.md](./SPEC.md) for the full design.
 - Completing a recurring item spawns its next occurrence, anchored on the
   original due date.
 - Drag and drop to reorder, move between lists, or drop into Today.
+- **Fuzzy search** across all lists (Cmd+F or the magnifying glass in the
+  header): live results as you type, matching item text and link URLs, with
+  matched characters highlighted. Esc returns to the previous view.
 - Every change is a read-modify-write against the file, so external edits
   (e.g. an agent rewriting `todo.txt`) show up automatically.
 

@@ -1,4 +1,12 @@
-import { ItemView, Menu, Notice, WorkspaceLeaf, setIcon } from "obsidian";
+import {
+	ItemView,
+	Menu,
+	Notice,
+	Platform,
+	WorkspaceLeaf,
+	prepareFuzzySearch,
+	setIcon,
+} from "obsidian";
 import type NudgePlugin from "../main";
 import { RenderTask, deriveLists } from "./store";
 import {
@@ -52,6 +60,35 @@ interface DragState {
 	index: number;
 }
 
+// Fuzzy search kicks in at 2 characters: a 1-char subsequence query matches
+// nearly every item, so anything shorter keeps showing the previous view.
+const MIN_SEARCH_CHARS = 2;
+
+// A fuzzy-search match: relevance score plus where it landed, for highlighting.
+interface SearchHit {
+	rt: RenderTask;
+	score: number;
+	ranges: [number, number][]; // matched char ranges within task.text
+	linkMatched: boolean; // some match fell in the cleaned link
+}
+
+// Reduce a URL to searchable words: strip the protocol and "www.", drop the
+// query string and fragment, percent-decode, and break on separators — so a
+// slug like /how-to-paint-blood-angels matches the query "blood angels".
+function cleanLink(link: string): string {
+	let s = link
+		.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
+		.replace(/^www\./i, "");
+	const cut = s.search(/[?#]/);
+	if (cut >= 0) s = s.slice(0, cut);
+	try {
+		s = decodeURIComponent(s);
+	} catch {
+		// Malformed percent-escapes: search the raw form instead.
+	}
+	return s.replace(/[/\-_.]+/g, " ").trim();
+}
+
 export class TodoView extends ItemView {
 	private plugin: NudgePlugin;
 	private selected: string = TODAY;
@@ -62,6 +99,10 @@ export class TodoView extends ItemView {
 	private adding = false; // inline add-row is active (input focused)
 	private editing: { raw: string; index: number } | null = null; // item under inline text edit
 	private rendering = false; // true only during a synchronous re-render
+	private searchActive = false; // header search input is expanded
+	private searchQuery = "";
+	private searchShowCompleted = true; // Results' own eye state (default: shown)
+	private searchJustOpened = false; // animate the widening on the next render
 
 	private railEl!: HTMLElement;
 	private panelEl!: HTMLElement;
@@ -102,7 +143,76 @@ export class TodoView extends ItemView {
 		root.addClass("todo-root");
 		this.railEl = root.createDiv({ cls: "todo-rail" });
 		this.panelEl = root.createDiv({ cls: "todo-panel" });
+
+		// Cmd+F (Ctrl+F off-mac) opens search, but only while this view is the
+		// active pane; capture phase so it wins over Obsidian's find-in-note.
+		this.registerDomEvent(
+			activeDocument,
+			"keydown",
+			(e: KeyboardEvent) => {
+				const mod = Platform.isMacOS
+					? e.metaKey && !e.ctrlKey
+					: e.ctrlKey && !e.metaKey;
+				if (!mod || e.altKey || e.shiftKey) return;
+				if (e.key.toLowerCase() !== "f") return;
+				if (this.app.workspace.getActiveViewOfType(TodoView) !== this)
+					return;
+				e.preventDefault();
+				e.stopPropagation();
+				e.stopImmediatePropagation();
+				this.openSearch();
+			},
+			{ capture: true }
+		);
+
+		// Esc closes search from anywhere in the view — except inside an
+		// inline add/edit input (which handles its own Esc) or a modal above.
+		this.registerDomEvent(activeDocument, "keydown", (e: KeyboardEvent) => {
+			if (e.key !== "Escape" || !this.searchActive) return;
+			if (this.app.workspace.getActiveViewOfType(TodoView) !== this) return;
+			const target = e.target as HTMLElement | null;
+			if (target?.closest(".todo-text-input, .modal-container")) return;
+			e.preventDefault();
+			this.closeSearch();
+			void this.refresh();
+		});
+
 		await this.refresh();
+	}
+
+	// True when search is active with a long-enough query to filter by.
+	private searching(): boolean {
+		return (
+			this.searchActive &&
+			this.searchQuery.trim().length >= MIN_SEARCH_CHARS
+		);
+	}
+
+	private openSearch(): void {
+		if (this.searchActive) {
+			// Already open (Cmd+F again): refocus, selecting the query.
+			const input = this.panelEl.querySelector<HTMLInputElement>(
+				"input.todo-search-input"
+			);
+			input?.focus();
+			input?.select();
+			return;
+		}
+		this.searchActive = true;
+		this.searchQuery = "";
+		this.searchShowCompleted = true; // finding old items is the point
+		this.searchJustOpened = true;
+		this.adding = false;
+		this.editing = null;
+		void this.refresh();
+	}
+
+	// Reset search state; callers refresh. `selected` is never touched by
+	// search, so the panel falls straight back to the previous view.
+	private closeSearch(): void {
+		this.searchActive = false;
+		this.searchQuery = "";
+		this.searchJustOpened = false;
 	}
 
 	async refresh(): Promise<void> {
@@ -244,6 +354,7 @@ export class TodoView extends ItemView {
 		el.createSpan({ cls: "todo-rail-count", text: String(count) });
 
 		el.addEventListener("click", () => {
+			this.closeSearch(); // navigating away ends an open search
 			this.selected = key;
 			this.adding = false;
 			this.editing = null;
@@ -278,86 +389,159 @@ export class TodoView extends ItemView {
 	}
 
 	private renderPanel(tasks: RenderTask[], today: string): void {
+		// Capture the search input's focus/caret before the re-render destroys
+		// it, so typing survives the full rebuild without the cursor jumping.
+		const prevSearch = this.panelEl.querySelector<HTMLInputElement>(
+			"input.todo-search-input"
+		);
+		const searchCaret =
+			prevSearch && prevSearch.ownerDocument.activeElement === prevSearch
+				? prevSearch.selectionStart
+				: null;
+		const activeEl = this.panelEl.ownerDocument.activeElement;
+		const focusWasInPanel = !!activeEl && this.panelEl.contains(activeEl);
+		const justOpened = this.searchJustOpened;
+		this.searchJustOpened = false;
+
 		this.panelEl.empty();
+		const isSearch = this.searching();
 		const isToday = this.selected === TODAY;
 
-		// Membership of a task in the current view, ignoring completion state.
-		const belongs = (rt: RenderTask) =>
-			isToday
-				? !!rt.task.due && rt.task.due <= today
-				: rt.task.projects.includes(this.selected);
+		const hits = new Map<RenderTask, SearchHit>();
+		let shown: RenderTask[];
+		let past: RenderTask[];
 
-		// In Today, optional list/priority filters narrow both groups below.
-		const matchesFilter = (rt: RenderTask) =>
-			!isToday ||
-			((!this.todayFilterList ||
-				rt.task.projects.includes(this.todayFilterList)) &&
-				(!this.todayFilterPriority ||
-					rt.task.priority === this.todayFilterPriority));
+		if (isSearch) {
+			// Every item in the file is a candidate, regardless of list, due
+			// date, or completion age. Corpus per item: text + cleaned link.
+			const fuzzy = prepareFuzzySearch(this.searchQuery.trim());
+			const scored: SearchHit[] = [];
+			for (const rt of tasks) {
+				const t = rt.task;
+				const corpus = t.link
+					? `${t.text} ${cleanLink(t.link)}`
+					: t.text;
+				const m = fuzzy(corpus);
+				if (!m) continue;
+				const len = t.text.length;
+				const ranges: [number, number][] = [];
+				let linkMatched = false;
+				for (const [start, end] of m.matches) {
+					if (start < len) ranges.push([start, Math.min(end, len)]);
+					if (end > len + 1) linkMatched = true;
+				}
+				scored.push({ rt, score: m.score, ranges, linkMatched });
+			}
+			scored.sort((a, b) => b.score - a.score); // best match first
+			for (const h of scored) hits.set(h.rt, h);
+			shown = scored
+				.filter((h) => !h.rt.task.completed)
+				.map((h) => h.rt);
+			// All completed matches — including completed-today — live in the
+			// bottom section, still in score order.
+			past = this.searchShowCompleted
+				? scored.filter((h) => h.rt.task.completed).map((h) => h.rt)
+				: [];
+		} else {
+			// Membership of a task in the current view, ignoring completion.
+			const belongs = (rt: RenderTask) =>
+				isToday
+					? !!rt.task.due && rt.task.due <= today
+					: rt.task.projects.includes(this.selected);
 
-		const showCompletedToday = this.plugin.settings.showCompletedToday;
+			// In Today, optional list/priority filters narrow both groups.
+			const matchesFilter = (rt: RenderTask) =>
+				!isToday ||
+				((!this.todayFilterList ||
+					rt.task.projects.includes(this.todayFilterList)) &&
+					(!this.todayFilterPriority ||
+						rt.task.priority === this.todayFilterPriority));
 
-		// Top group: active + completed-today (if shown), in file order.
-		const shown = isToday
-			? tasks.filter(
-					(rt) =>
-						inToday(rt.task, today, showCompletedToday) && matchesFilter(rt)
-			  )
-			: tasks.filter(
-					(rt) => belongs(rt) && isVisible(rt.task, today, showCompletedToday)
-			  );
+			const showCompletedToday = this.plugin.settings.showCompletedToday;
 
-		// Past group: completed on an earlier day (or today, if today's
-		// completions are hidden from the top group), freshest first.
-		const past = this.showCompleted
-			? tasks
-					.filter(
+			// Top group: active + completed-today (if shown), in file order.
+			shown = isToday
+				? tasks.filter(
+						(rt) =>
+							inToday(rt.task, today, showCompletedToday) &&
+							matchesFilter(rt)
+				  )
+				: tasks.filter(
 						(rt) =>
 							belongs(rt) &&
-							matchesFilter(rt) &&
-							rt.task.completed &&
-							!!rt.task.completionDate &&
-							(rt.task.completionDate < today ||
-								(!showCompletedToday && rt.task.completionDate === today))
-					)
-					.sort((a, b) =>
-						(b.task.completionDate ?? "").localeCompare(
-							a.task.completionDate ?? ""
+							isVisible(rt.task, today, showCompletedToday)
+				  );
+
+			// Past group: completed on an earlier day (or today, if today's
+			// completions are hidden from the top group), freshest first.
+			past = this.showCompleted
+				? tasks
+						.filter(
+							(rt) =>
+								belongs(rt) &&
+								matchesFilter(rt) &&
+								rt.task.completed &&
+								!!rt.task.completionDate &&
+								(rt.task.completionDate < today ||
+									(!showCompletedToday &&
+										rt.task.completionDate === today))
 						)
-					)
-			: [];
+						.sort((a, b) =>
+							(b.task.completionDate ?? "").localeCompare(
+								a.task.completionDate ?? ""
+							)
+						)
+				: [];
+		}
 
 		const header = this.panelEl.createDiv({ cls: "todo-header" });
 		const left = header.createDiv({ cls: "todo-header-left" });
 
-		const st = this.styleFor(isToday ? TODAY : this.selected);
-		const defaultIcon = isToday
-			? "calendar-clock"
-			: this.selected === this.plugin.settings.defaultList
-				? "inbox"
-				: "list";
+		const st = isSearch
+			? undefined
+			: this.styleFor(isToday ? TODAY : this.selected);
+		const defaultIcon = isSearch
+			? "search"
+			: isToday
+				? "calendar-clock"
+				: this.selected === this.plugin.settings.defaultList
+					? "inbox"
+					: "list";
 		const icon = left.createSpan({ cls: "todo-header-icon" });
 		setIcon(icon, st?.icon || defaultIcon);
 		if (st?.color) icon.style.color = st.color;
 
 		left.createEl("h3", {
-			text: isToday ? "Today" : humanizeProject(this.selected),
+			text: isSearch
+				? "Results"
+				: isToday
+					? "Today"
+					: humanizeProject(this.selected),
 		});
 
-		// Toggle to reveal/hide items completed on an earlier day.
+		// Toggle to reveal/hide completed items. Results keeps its own toggle
+		// state (default: shown), independent of the browsing views'.
+		const eyeOn = isSearch ? this.searchShowCompleted : this.showCompleted;
 		const eye = left.createSpan({ cls: "todo-eye" });
-		setIcon(eye, this.showCompleted ? "eye-off" : "eye");
+		setIcon(eye, eyeOn ? "eye-off" : "eye");
 		eye.setAttr(
 			"aria-label",
-			this.showCompleted ? "Hide past completed" : "Show past completed"
+			isSearch
+				? eyeOn
+					? "Hide completed"
+					: "Show completed"
+				: eyeOn
+					? "Hide past completed"
+					: "Show past completed"
 		);
 		eye.addEventListener("click", () => {
-			this.showCompleted = !this.showCompleted;
+			if (isSearch) this.searchShowCompleted = !this.searchShowCompleted;
+			else this.showCompleted = !this.showCompleted;
 			void this.refresh();
 		});
 
 		// Active list filter for Today: click anywhere on it to clear.
-		if (isToday && this.todayFilterList) {
+		if (!isSearch && isToday && this.todayFilterList) {
 			const filterList = this.todayFilterList;
 			const pill = left.createSpan({ cls: "todo-list-tag todo-filter-pill" });
 			const fst = this.styleFor(filterList);
@@ -378,7 +562,7 @@ export class TodoView extends ItemView {
 		}
 
 		// Active priority filter for Today: click anywhere on it to clear.
-		if (isToday && this.todayFilterPriority) {
+		if (!isSearch && isToday && this.todayFilterPriority) {
 			const pri = this.todayFilterPriority;
 			const pill = left.createSpan({
 				cls: `todo-pri todo-pri-${pri} todo-filter-pill`,
@@ -393,8 +577,8 @@ export class TodoView extends ItemView {
 			});
 		}
 
-		// Delete-list icon (project lists only; Today can't be deleted).
-		if (!isToday) {
+		// Delete-list icon (project lists only; Today/Results can't be deleted).
+		if (!isSearch && !isToday) {
 			const list = this.selected;
 			const del = left.createSpan({ cls: "todo-trash" });
 			setIcon(del, "trash-2");
@@ -453,30 +637,136 @@ export class TodoView extends ItemView {
 			menu.showAtMouseEvent(e);
 		});
 
+		const right = header.createDiv({ cls: "todo-header-right" });
+		this.renderSearchControl(right, justOpened);
+
 		// Add button on every view: focuses the inline add-row rather than
-		// opening a modal.
-		const add = header.createEl("button", { cls: "todo-add-btn" });
+		// opening a modal. From Results it first exits back to the previous
+		// view (see activateAdd).
+		const add = right.createEl("button", { cls: "todo-add-btn" });
 		setIcon(add, "plus");
 		add.setAttr("aria-label", "New task");
 		add.addEventListener("click", () => this.activateAdd());
 
 		const listEl = this.panelEl.createDiv({ cls: "todo-list" });
 		for (const rt of shown) {
-			listEl.appendChild(this.renderItem(rt, today, isToday));
+			listEl.appendChild(
+				this.renderItem(rt, today, isSearch || isToday, hits.get(rt))
+			);
 		}
-		// Permanent add-row at the bottom of the active group. Doubles as the
-		// empty state, so there's no separate "Nothing here." message.
-		listEl.appendChild(this.renderAddRow());
+		if (isSearch) {
+			// No add-row in Results (there's no list for a new task to join),
+			// so an explicit empty state stands in for it.
+			if (shown.length === 0 && past.length === 0) {
+				listEl.createDiv({ cls: "todo-empty", text: "No matching items" });
+			}
+		} else {
+			// Permanent add-row at the bottom of the active group. Doubles as
+			// the empty state, so there's no separate "Nothing here." message.
+			listEl.appendChild(this.renderAddRow());
+		}
 		if (past.length) {
 			const pastEl = listEl.createDiv({ cls: "todo-past" });
 			for (const rt of past) {
-				pastEl.appendChild(this.renderItem(rt, today, isToday));
+				pastEl.appendChild(
+					this.renderItem(rt, today, isSearch || isToday, hits.get(rt))
+				);
+			}
+		}
+
+		// Restore search-input focus after re-renders triggered by typing or
+		// by interactions inside this panel — never steal it from other panes
+		// (external file edits re-render this view too).
+		if (
+			this.searchActive &&
+			!this.adding &&
+			!this.editing &&
+			(justOpened || searchCaret !== null || focusWasInPanel)
+		) {
+			const input = this.panelEl.querySelector<HTMLInputElement>(
+				"input.todo-search-input"
+			);
+			if (input) {
+				input.focus();
+				const caret = searchCaret ?? input.value.length;
+				input.setSelectionRange(caret, caret);
 			}
 		}
 	}
 
+	// The magnifying-glass circle that widens into the query input, plus the
+	// in-input clear button. Lives left of the + button in the header.
+	private renderSearchControl(parent: HTMLElement, justOpened: boolean): void {
+		const search = parent.createSpan({ cls: "todo-search" });
+		const icon = search.createSpan({ cls: "todo-search-icon" });
+		setIcon(icon, "search");
+
+		if (!this.searchActive) {
+			search.addClass("is-collapsed");
+			search.setAttr("aria-label", "Search");
+			search.addEventListener("click", () => this.openSearch());
+			return;
+		}
+
+		const input = search.createEl("input", {
+			type: "text",
+			cls: "todo-search-input",
+		});
+		input.placeholder = "Search";
+		input.value = this.searchQuery;
+		input.addEventListener("input", () => {
+			this.searchQuery = input.value;
+			void this.refresh();
+		});
+		input.addEventListener("blur", () => {
+			// Ignore the phantom blur fired when a re-render detaches the
+			// input; only a real user-initiated blur leaves it connected.
+			if (this.rendering || !input.isConnected) return;
+			if (input.value.trim().length) return; // keep results usable
+			// Collapse an abandoned empty input — but deferred, so the click
+			// that caused the blur lands on live elements first (a sync
+			// re-render here would destroy the click's target before mouseup).
+			window.setTimeout(() => {
+				if (!this.searchActive || this.searchQuery.trim().length) return;
+				if (
+					input.isConnected &&
+					input.ownerDocument.activeElement === input
+				)
+					return; // got refocused
+				this.closeSearch();
+				void this.refresh();
+			}, 250);
+		});
+
+		const clear = search.createSpan({ cls: "todo-search-clear" });
+		setIcon(clear, "x");
+		clear.setAttr("aria-label", "Clear search");
+		// Keep the input from blurring first, so the click stays simple.
+		clear.addEventListener("mousedown", (e) => e.preventDefault());
+		clear.addEventListener("click", () => {
+			this.closeSearch();
+			void this.refresh();
+		});
+
+		// Mount collapsed on the opening render, then widen a frame later so
+		// the CSS transition animates the open — and only the open, not every
+		// keystroke's re-render.
+		if (justOpened) {
+			search.addClass("is-collapsed");
+			requestAnimationFrame(() => {
+				search.removeClass("is-collapsed");
+				search.addClass("is-open");
+			});
+		} else {
+			search.addClass("is-open");
+		}
+	}
+
 	// Enter inline-add mode and re-render so the add-row shows a focused input.
+	// From Results this first closes search, so the add happens back in the
+	// previously selected view where the new task will be visible.
 	private activateAdd(): void {
+		this.closeSearch();
 		this.editing = null;
 		this.adding = true;
 		void this.refresh();
@@ -560,7 +850,8 @@ export class TodoView extends ItemView {
 	private renderItem(
 		rt: RenderTask,
 		today: string,
-		showList: boolean
+		showList: boolean,
+		search?: SearchHit
 	): HTMLElement {
 		const t = rt.task;
 		const row = createDiv({ cls: "todo-item" });
@@ -597,7 +888,8 @@ export class TodoView extends ItemView {
 				cls: `todo-pri todo-pri-${t.priority}`,
 				text: t.priority,
 			});
-			if (showList) {
+			// Click-to-filter is a Today affordance; in Results it's inert.
+			if (showList && !search) {
 				const priority = t.priority;
 				pri.addClass("is-clickable");
 				pri.addEventListener("click", (e) => {
@@ -663,7 +955,23 @@ export class TodoView extends ItemView {
 			// Clicking the text starts inline editing; completion toggling stays
 			// on the checkbox / blank row space (stopPropagation avoids the row
 			// handler here).
-			const textSpan = main.createSpan({ cls: "todo-text", text: t.text });
+			const textSpan = main.createSpan({ cls: "todo-text" });
+			if (search && search.ranges.length) {
+				// Highlight the fuzzy-matched characters, so scattered
+				// subsequence hits don't look arbitrary.
+				let pos = 0;
+				for (const [start, end] of search.ranges) {
+					if (start > pos) textSpan.appendText(t.text.slice(pos, start));
+					textSpan.createSpan({
+						cls: "todo-search-match",
+						text: t.text.slice(start, end),
+					});
+					pos = end;
+				}
+				if (pos < t.text.length) textSpan.appendText(t.text.slice(pos));
+			} else {
+				textSpan.setText(t.text);
+			}
 			textSpan.addEventListener("click", (e) => {
 				e.stopPropagation();
 				this.adding = false;
@@ -688,6 +996,15 @@ export class TodoView extends ItemView {
 				if (st?.color) tag.style.borderColor = st.color;
 				tag.addEventListener("click", (e) => {
 					e.stopPropagation();
+					if (search) {
+						// Jump to the list this result lives in, ending search.
+						this.closeSearch();
+						this.selected = project;
+						this.adding = false;
+						this.editing = null;
+						void this.refresh();
+						return;
+					}
 					this.todayFilterList =
 						this.todayFilterList === project ? null : project;
 					void this.refresh();
@@ -732,6 +1049,8 @@ export class TodoView extends ItemView {
 			});
 			const label = setLinkIcon(link, t.link);
 			link.setAttr("aria-label", label);
+			// Same highlight as matched text: signals the query hit the URL.
+			if (search?.linkMatched) link.addClass("todo-search-match-link");
 			link.addEventListener("click", (e) => {
 				e.stopPropagation();
 				window.open(t.link!, "_blank");
@@ -764,7 +1083,9 @@ export class TodoView extends ItemView {
 			})();
 		});
 
-		// Drag to reorder.
+		// Drag to reorder. Dragging out of Results to a rail target still
+		// works, but rows there aren't drop targets themselves: reordering a
+		// score-sorted view is meaningless.
 		row.addEventListener("dragstart", (e) => {
 			this.drag = { raw: rt.task.raw, index: rt.index };
 			row.addClass("is-dragging");
@@ -775,38 +1096,40 @@ export class TodoView extends ItemView {
 			row.removeClass("is-dragging");
 			this.drag = null;
 		});
-		row.addEventListener("dragover", (e) => {
-			if (this.drag && this.drag.index !== rt.index) {
+		if (!search) {
+			row.addEventListener("dragover", (e) => {
+				if (this.drag && this.drag.index !== rt.index) {
+					e.preventDefault();
+					const rect = row.getBoundingClientRect();
+					const before = e.clientY < rect.top + rect.height / 2;
+					row.toggleClass("drop-before", before);
+					row.toggleClass("drop-after", !before);
+				}
+			});
+			row.addEventListener("dragleave", () => {
+				row.removeClass("drop-before");
+				row.removeClass("drop-after");
+			});
+			row.addEventListener("drop", (e) => {
 				e.preventDefault();
-				const rect = row.getBoundingClientRect();
-				const before = e.clientY < rect.top + rect.height / 2;
-				row.toggleClass("drop-before", before);
-				row.toggleClass("drop-after", !before);
-			}
-		});
-		row.addEventListener("dragleave", () => {
-			row.removeClass("drop-before");
-			row.removeClass("drop-after");
-		});
-		row.addEventListener("drop", (e) => {
-			e.preventDefault();
-			const before = row.hasClass("drop-before");
-			row.removeClass("drop-before");
-			row.removeClass("drop-after");
-			const d = this.drag;
-			this.drag = null;
-			if (!d || d.index === rt.index) return;
-			void (async () => {
-				await this.plugin.store.reorder(
-					d.raw,
-					d.index,
-					rt.task.raw,
-					rt.index,
-					before
-				);
-				await this.refresh();
-			})();
-		});
+				const before = row.hasClass("drop-before");
+				row.removeClass("drop-before");
+				row.removeClass("drop-after");
+				const d = this.drag;
+				this.drag = null;
+				if (!d || d.index === rt.index) return;
+				void (async () => {
+					await this.plugin.store.reorder(
+						d.raw,
+						d.index,
+						rt.task.raw,
+						rt.index,
+						before
+					);
+					await this.refresh();
+				})();
+			});
+		}
 
 		return row;
 	}

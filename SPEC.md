@@ -66,6 +66,33 @@ x 2026-07-11 Buy milk +Groceries due:2026-07-11
 - Items default to **read-only** display. Hovering an item reveals **Edit** and **Delete**
   icon buttons.
 
+## Search
+
+- Entry: a circled magnifying-glass button in the panel header, left of the **+** button,
+  or **Cmd+F** (Ctrl+F off-mac) while the Nudge view is the active pane. Either expands the
+  circle into an inline query input (animated widening).
+- **Fuzzy matching** via Obsidian's built-in `prepareFuzzySearch`, over `text + cleaned link`
+  per item. The link is cleaned before matching: protocol/`www.` stripped, query string and
+  fragment dropped, percent-decoded, split on `/ - _ .` — so "blood angels" matches a
+  `/how-to-paint-blood-angels` slug. List names are **not** searched.
+- Live: results recompute on every keystroke once the query has **≥ 2 characters** (a 1-char
+  fuzzy query matches nearly everything). Below 2 characters the panel keeps showing the
+  previously selected view.
+- **Results view**: header reads "Results". All items in the file are candidates, regardless
+  of list, due date, or completion age. Incomplete matches on top sorted by score, then all
+  completed matches (including completed-today) in the dimmed bottom section, also by score.
+  The eye toggle starts **on** (completed shown) and is independent of the browsing views'
+  eye state. Matched characters are highlighted in the item text; when the match landed in
+  the link, the link button gets the same highlight.
+- Result rows behave like list rows (toggle, inline edit, copy, delete, due picker). Each
+  shows its list tag(s); clicking a tag exits search and navigates to that list. Dragging a
+  result onto a rail target works; reordering within Results is disabled. Priority pills are
+  inert. Copy-list offers the usual three formats over the visible results. No add-row —
+  the **+** button exits search back to the previous view and starts an inline add there.
+- Exit: **Esc** or the **✕** inside the input clears the query and returns to the previously
+  selected view (selection and Today filters untouched). Clicking a rail item closes search
+  and navigates. An empty input collapses back to the icon on blur.
+
 ## Item Model (Create/Edit Modal)
 
 All fields are entered through a structured modal — no hand-typed todo.txt syntax.
