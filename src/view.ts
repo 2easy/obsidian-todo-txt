@@ -2,7 +2,6 @@ import {
 	ItemView,
 	Menu,
 	Notice,
-	Platform,
 	WorkspaceLeaf,
 	prepareFuzzySearch,
 	setIcon,
@@ -20,6 +19,7 @@ import {
 	Task,
 } from "./todotxt";
 import { TaskModal, DeleteListModal } from "./modal";
+import { matchHotkey } from "./hotkey";
 import type { ListStyle } from "./settings";
 
 export const VIEW_TYPE_TODO = "nudge-view";
@@ -144,17 +144,18 @@ export class TodoView extends ItemView {
 		this.railEl = root.createDiv({ cls: "todo-rail" });
 		this.panelEl = root.createDiv({ cls: "todo-panel" });
 
-		// Cmd+F (Ctrl+F off-mac) opens search, but only while this view is the
-		// active pane; capture phase so it wins over Obsidian's find-in-note.
+		// Configurable search hotkey (unset by default), honored only while
+		// this view is the active pane; capture phase so it wins over
+		// Obsidian's own binding for the combo (e.g. find-in-note for Cmd+F).
 		this.registerDomEvent(
 			activeDocument,
 			"keydown",
 			(e: KeyboardEvent) => {
-				const mod = Platform.isMacOS
-					? e.metaKey && !e.ctrlKey
-					: e.ctrlKey && !e.metaKey;
-				if (!mod || e.altKey || e.shiftKey) return;
-				if (e.key.toLowerCase() !== "f") return;
+				const hk = this.plugin.settings.searchHotkey;
+				if (!hk) return;
+				const target = e.target as HTMLElement | null;
+				if (target?.closest(".todo-hotkey-input")) return; // recording
+				if (!matchHotkey(e, hk)) return;
 				if (this.app.workspace.getActiveViewOfType(TodoView) !== this)
 					return;
 				e.preventDefault();

@@ -17,6 +17,7 @@ export interface TodoSettings {
 	path: string;
 	defaultList: string; // pre-selected list for new items; always pinned
 	newItemHotkey: string; // normalized hotkey, e.g. "Meta+N"; "" disables
+	searchHotkey: string; // opens search while the view is active; "" disables
 	openOnStartup: boolean;
 	showCompletedToday: boolean; // if off, tasks hide as soon as they're completed
 	listStyles: ListStyle[];
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: TodoSettings = {
 	path: "todo.txt",
 	defaultList: "Inbox",
 	newItemHotkey: "",
+	searchHotkey: "",
 	openOnStartup: true,
 	showCompletedToday: true,
 	listStyles: [
@@ -108,36 +110,57 @@ export class TodoSettingTab extends PluginSettingTab {
 					})
 			);
 
+		this.hotkeySetting(
+			containerEl,
+			"New task hotkey",
+			"Shortcut to open the new-task window from anywhere. Click the field and press the combination; press Backspace to clear. Overrides Obsidian's default binding for that combo.",
+			() => this.plugin.settings.newItemHotkey,
+			(v) => (this.plugin.settings.newItemHotkey = v)
+		);
+
+		this.hotkeySetting(
+			containerEl,
+			"Search hotkey",
+			"Shortcut to open search while the Nudge view is active. Click the field and press the combination; press Backspace to clear. Overrides Obsidian's default binding for that combo (e.g. find-in-note for Cmd+F).",
+			() => this.plugin.settings.searchHotkey,
+			(v) => (this.plugin.settings.searchHotkey = v)
+		);
+
+		this.renderListStyles(containerEl);
+	}
+
+	// A click-and-press hotkey recorder bound to one settings field.
+	private hotkeySetting(
+		containerEl: HTMLElement,
+		name: string,
+		desc: string,
+		get: () => string,
+		set: (v: string) => void
+	): void {
 		new Setting(containerEl)
-			.setName("New task hotkey")
-			.setDesc(
-				"Shortcut to open the new-task window from anywhere. Click the field and press the combination; press Backspace to clear. Overrides Obsidian's default binding for that combo."
-			)
+			.setName(name)
+			.setDesc(desc)
 			.addText((text) => {
 				text.inputEl.addClass("todo-hotkey-input");
 				text.inputEl.readOnly = true;
 				text.setPlaceholder("Press keys…");
-				text.setValue(hotkeyToDisplay(this.plugin.settings.newItemHotkey));
+				text.setValue(hotkeyToDisplay(get()));
 				text.inputEl.addEventListener("keydown", (e) => {
 					e.preventDefault();
 					if (e.key === "Backspace" || e.key === "Delete") {
-						this.plugin.settings.newItemHotkey = "";
+						set("");
 					} else if (isModifierOnly(e)) {
 						return; // wait for a real key
 					} else {
-						this.plugin.settings.newItemHotkey = eventToHotkey(e);
+						set(eventToHotkey(e));
 					}
 					void (async () => {
 						await this.plugin.saveSettings();
-						text.setValue(
-							hotkeyToDisplay(this.plugin.settings.newItemHotkey)
-						);
+						text.setValue(hotkeyToDisplay(get()));
 						text.inputEl.blur();
 					})();
 				});
 			});
-
-		this.renderListStyles(containerEl);
 	}
 
 	private renderListStyles(containerEl: HTMLElement): void {

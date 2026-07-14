@@ -69,8 +69,9 @@ x 2026-07-11 Buy milk +Groceries due:2026-07-11
 ## Search
 
 - Entry: a circled magnifying-glass button in the panel header, left of the **+** button,
-  or **Cmd+F** (Ctrl+F off-mac) while the Nudge view is the active pane. Either expands the
-  circle into an inline query input (animated widening).
+  or a configurable hotkey (plugin settings, unset by default — e.g. Cmd+F) honored while
+  the Nudge view is the active pane. Either expands the circle into an inline query input
+  (animated widening).
 - **Fuzzy matching** via Obsidian's built-in `prepareFuzzySearch`, over `text + cleaned link`
   per item. The link is cleaned before matching: protocol/`www.` stripped, query string and
   fragment dropped, percent-decoded, split on `/ - _ .` — so "blood angels" matches a
