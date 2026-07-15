@@ -20,6 +20,8 @@ export interface TodoSettings {
 	searchHotkey: string; // opens search while the view is active; "" disables
 	openOnStartup: boolean;
 	showCompletedToday: boolean; // if off, tasks hide as soon as they're completed
+	dockBadge: boolean; // macOS Dock badge with a task count
+	dockBadgeIncludeToday: boolean; // badge also counts tasks due today
 	listStyles: ListStyle[];
 }
 
@@ -30,6 +32,8 @@ export const DEFAULT_SETTINGS: TodoSettings = {
 	searchHotkey: "",
 	openOnStartup: true,
 	showCompletedToday: true,
+	dockBadge: false,
+	dockBadgeIncludeToday: true,
 	listStyles: [
 		{ name: "Today", color: "#4a90e2", icon: "calendar-clock" },
 		{ name: "Inbox", color: "#43a047", icon: "inbox" },
@@ -107,6 +111,34 @@ export class TodoSettingTab extends PluginSettingTab {
 						this.plugin.settings.showCompletedToday = v;
 						await this.plugin.saveSettings();
 						this.plugin.refreshViews();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Dock badge (macOS)")
+			.setDesc(
+				"Show the native red badge on Obsidian's Dock icon with the number of overdue tasks."
+			)
+			.addToggle((t) =>
+				t.setValue(this.plugin.settings.dockBadge).onChange(async (v) => {
+					this.plugin.settings.dockBadge = v;
+					await this.plugin.saveSettings();
+					void this.plugin.updateBadge();
+				})
+			);
+
+		new Setting(containerEl)
+			.setName("Badge includes tasks due today")
+			.setDesc(
+				"Count tasks due today alongside overdue ones, matching the Today view. When off, the badge counts only overdue tasks."
+			)
+			.addToggle((t) =>
+				t
+					.setValue(this.plugin.settings.dockBadgeIncludeToday)
+					.onChange(async (v) => {
+						this.plugin.settings.dockBadgeIncludeToday = v;
+						await this.plugin.saveSettings();
+						void this.plugin.updateBadge();
 					})
 			);
 

@@ -94,6 +94,20 @@ x 2026-07-11 Buy milk +Groceries due:2026-07-11
   selected view (selection and Today filters untouched). Clicking a rail item closes search
   and navigates. An empty input collapses back to the icon on blur.
 
+## Dock badge (macOS)
+
+- Optional, **off by default**: the native red Dock badge on Obsidian's icon, counting
+  uncompleted overdue tasks — or overdue + due-today with "include tasks due today"
+  (**on by default**), which makes the badge match the Today view count, following the
+  Reminders/Things/Todoist convention.
+- Zero hides the badge; completed tasks never count; list membership is irrelevant.
+- Recomputed on plugin load (layout-ready), on every `todo.txt` change, on settings/path
+  changes, and when the date flips: a minute tick watches for the day rollover and then
+  also re-renders open views, so the Today view rolls over at midnight too.
+- Implemented at the plugin level via Electron's `app.dock` (through Obsidian's exposed
+  remote module), so it works with no Nudge pane open. Plugin unload, a read error, or
+  disabling the toggle clears the badge.
+
 ## Item Model (Create/Edit Modal)
 
 All fields are entered through a structured modal — no hand-typed todo.txt syntax.

@@ -1,6 +1,7 @@
 import {
 	Notice,
 	ObsidianProtocolData,
+	Platform,
 	Plugin,
 	TAbstractFile,
 	WorkspaceLeaf,
@@ -10,7 +11,24 @@ import { DEFAULT_SETTINGS, TodoSettings, TodoSettingTab } from "./src/settings";
 import { TodoView, VIEW_TYPE_TODO } from "./src/view";
 import { TaskModal } from "./src/modal";
 import { matchHotkey } from "./src/hotkey";
-import { Priority, Task } from "./src/todotxt";
+import { Priority, Task, todayStr } from "./src/todotxt";
+
+// The macOS Dock API, reached through the Electron remote module that
+// Obsidian exposes to desktop plugins — as window.electron.remote in current
+// builds, or via window.require("electron") in older ones. Null anywhere the
+// Dock doesn't exist.
+function getDock(): { setBadge(text: string): void } | null {
+	if (!Platform.isMacOS) return null;
+	const w = window as any;
+	let remote: any;
+	try {
+		remote = w.electron?.remote ?? w.require?.("electron")?.remote;
+	} catch {
+		return null;
+	}
+	const dock = remote?.app?.dock;
+	return dock && typeof dock.setBadge === "function" ? dock : null;
+}
 
 // Accepts "A"/"B"/"C" (case-insensitive) or the words used in the modal.
 function parsePriority(raw: string | undefined): Priority {
@@ -94,13 +112,62 @@ export default class NudgePlugin extends Plugin {
 		// external agent rewriting todo.txt).
 		this.registerEvent(
 			this.app.vault.on("modify", (file: TAbstractFile) => {
-				if (file.path === this.store.getPath()) this.refreshViews();
+				if (file.path === this.store.getPath()) {
+					this.refreshViews();
+					void this.updateBadge();
+				}
 			})
+		);
+
+		// Badge reflects state even with no Nudge pane open. Deferred to
+		// layout-ready so the vault index already knows the file.
+		this.app.workspace.onLayoutReady(() => void this.updateBadge());
+
+		// Day rollover: at midnight (or on wake past it) the overdue/due-today
+		// populations change even though the file didn't. A cheap minute tick
+		// spots the date flip, then refreshes open views and the badge.
+		let lastDay = todayStr();
+		this.registerInterval(
+			window.setInterval(() => {
+				const day = todayStr();
+				if (day === lastDay) return;
+				lastDay = day;
+				this.refreshViews();
+				void this.updateBadge();
+			}, 60_000)
 		);
 	}
 
 	onunload(): void {
 		// Leaves are detached automatically by Obsidian on unload.
+		getDock()?.setBadge(""); // don't leave a stale badge behind
+	}
+
+	// Recompute the Dock badge: uncompleted tasks that are overdue (or also
+	// due today, per settings). Zero, badge disabled, or a read error all
+	// clear it — never show a number we can't stand behind.
+	async updateBadge(): Promise<void> {
+		const dock = getDock();
+		if (!dock) return;
+		if (!this.settings.dockBadge) {
+			dock.setBadge("");
+			return;
+		}
+		let count = 0;
+		try {
+			const tasks = await this.store.readTasks();
+			const today = todayStr();
+			const includeToday = this.settings.dockBadgeIncludeToday;
+			count = tasks.filter(
+				({ task }) =>
+					!task.completed &&
+					!!task.due &&
+					(includeToday ? task.due <= today : task.due < today)
+			).length;
+		} catch {
+			count = 0;
+		}
+		dock.setBadge(count > 0 ? String(count) : "");
 	}
 
 	async handleUri(params: ObsidianProtocolData): Promise<void> {
@@ -185,6 +252,7 @@ export default class NudgePlugin extends Plugin {
 	onPathChanged(): void {
 		this.store.setPath(this.settings.path);
 		this.refreshViews();
+		void this.updateBadge();
 	}
 
 	async loadSettings(): Promise<void> {

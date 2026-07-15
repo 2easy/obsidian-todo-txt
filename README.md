@@ -24,6 +24,8 @@ See [SPEC.md](./SPEC.md) for the full design.
   highlighted. Esc returns to the previous view.
 - Every change is a read-modify-write against the file, so external edits
   (e.g. an agent rewriting `todo.txt`) show up automatically.
+- Optional macOS **Dock badge** (off by default) counting overdue tasks —
+  optionally including tasks due today, which matches the Today view count.
 
 ## Install (unpacked dev plugin)
 
