@@ -13,21 +13,32 @@ import { TaskModal } from "./src/modal";
 import { matchHotkey } from "./src/hotkey";
 import { Priority, Task, todayStr } from "./src/todotxt";
 
-// The macOS Dock API, reached through the Electron remote module that
-// Obsidian exposes to desktop plugins — as window.electron.remote in current
-// builds, or via window.require("electron") in older ones. Null anywhere the
-// Dock doesn't exist.
-function getDock(): { setBadge(text: string): void } | null {
+// The subset of Electron's remote surface the badge needs, as exposed by
+// Obsidian to desktop plugins — window.electron.remote in current builds, or
+// window.require("electron").remote in older ones.
+interface RemoteElectron {
+	remote?: { app?: { dock?: { setBadge?: (text: string) => void } } };
+}
+
+interface ElectronWindow extends Window {
+	electron?: RemoteElectron;
+	require?: (module: string) => RemoteElectron | undefined;
+}
+
+// The macOS Dock API. Null anywhere the Dock doesn't exist.
+function getDock(): { setBadge: (text: string) => void } | null {
 	if (!Platform.isMacOS) return null;
-	const w = window as any;
-	let remote: any;
+	const w = window as ElectronWindow;
+	let remote: RemoteElectron["remote"];
 	try {
 		remote = w.electron?.remote ?? w.require?.("electron")?.remote;
 	} catch {
 		return null;
 	}
 	const dock = remote?.app?.dock;
-	return dock && typeof dock.setBadge === "function" ? dock : null;
+	const setBadge = dock?.setBadge;
+	if (typeof setBadge !== "function") return null;
+	return { setBadge: (text: string) => setBadge.call(dock, text) };
 }
 
 // Accepts "A"/"B"/"C" (case-insensitive) or the words used in the modal.

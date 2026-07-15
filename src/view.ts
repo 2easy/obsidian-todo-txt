@@ -754,7 +754,7 @@ export class TodoView extends ItemView {
 		// keystroke's re-render.
 		if (justOpened) {
 			search.addClass("is-collapsed");
-			requestAnimationFrame(() => {
+			window.requestAnimationFrame(() => {
 				search.removeClass("is-collapsed");
 				search.addClass("is-open");
 			});
