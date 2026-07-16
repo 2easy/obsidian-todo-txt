@@ -95,6 +95,23 @@ function cleanLink(link: string): string {
 	return s.replace(/[/\-_.]+/g, " ").trim();
 }
 
+// Identity fingerprint over the fields a completion toggle never touches.
+// Used to re-locate "the row that was just completed" after a full re-render
+// (see justCompletedFingerprint) — the physical line index can't be trusted
+// for this because completing a recurring task splices a new line in above
+// it, shifting the completed line's index by one.
+function completionFingerprint(t: Task): string {
+	return [
+		t.creationDate ?? "",
+		t.priority ?? "",
+		t.text,
+		t.projects.join(","),
+		t.due ?? "",
+		t.link ?? "",
+		t.rec ?? "",
+	].join(" ");
+}
+
 export class TodoView extends ItemView {
 	private plugin: NudgePlugin;
 	private selected: string = TODAY;
@@ -111,6 +128,8 @@ export class TodoView extends ItemView {
 	private searchJustOpened = false; // animate the widening on the next render
 	private searchTagSuggest?: TagSuggestHandle;
 	private searchTagJustCommitted = false; // suppress dropdown reopen after a tag pick
+	private justCompletedFingerprint: string | null = null; // animate this row on the next render(s)
+	private justCompletedTimer: number | null = null;
 
 	private railEl!: HTMLElement;
 	private panelEl!: HTMLElement;
@@ -250,6 +269,34 @@ export class TodoView extends ItemView {
 		if (!q.startsWith("@")) return null;
 		const key = asciiFold(q.slice(1)).toLowerCase();
 		return key || null;
+	}
+
+	// Toggling to complete arms justCompletedFingerprint so the next render(s)
+	// can find and animate that specific row (see completionFingerprint).
+	// Un-completing is plain instant undo, no animation.
+	private async toggleTask(rt: RenderTask): Promise<void> {
+		if (!rt.task.completed) {
+			this.armJustCompleted(completionFingerprint(rt.task));
+		}
+		await this.plugin.store.toggleComplete(rt.task.raw, rt.index);
+		await this.refresh();
+	}
+
+	// The file write below lands on disk and, via the vault's own `modify`
+	// listener (main.ts), triggers a second, independent refresh() shortly
+	// after the explicit one above — so the marker has to survive whichever
+	// of the two renders first, not just "the next" one. It self-clears on a
+	// timer instead of being consumed by the first render that reads it, so
+	// a later unrelated refresh doesn't replay the animation.
+	private armJustCompleted(fingerprint: string): void {
+		this.justCompletedFingerprint = fingerprint;
+		if (this.justCompletedTimer !== null) {
+			window.clearTimeout(this.justCompletedTimer);
+		}
+		this.justCompletedTimer = window.setTimeout(() => {
+			this.justCompletedFingerprint = null;
+			this.justCompletedTimer = null;
+		}, 500);
 	}
 
 	async refresh(): Promise<void> {
@@ -491,6 +538,10 @@ export class TodoView extends ItemView {
 		const focusWasInPanel = !!activeEl && this.panelEl.contains(activeEl);
 		const justOpened = this.searchJustOpened;
 		this.searchJustOpened = false;
+		// Not cleared here: the file write that led to this render also
+		// triggers a second, independent render shortly after (see
+		// armJustCompleted), which needs to see the same marker.
+		const justCompletedFingerprint = this.justCompletedFingerprint;
 
 		this.panelEl.empty();
 		const isSearch = this.searching();
@@ -760,7 +811,14 @@ export class TodoView extends ItemView {
 		const listEl = this.panelEl.createDiv({ cls: "todo-list" });
 		for (const rt of shown) {
 			listEl.appendChild(
-				this.renderItem(rt, today, isSearch || isToday, tags, hits.get(rt))
+				this.renderItem(
+					rt,
+					today,
+					isSearch || isToday,
+					tags,
+					hits.get(rt),
+					justCompletedFingerprint
+				)
 			);
 		}
 		if (isSearch) {
@@ -778,7 +836,14 @@ export class TodoView extends ItemView {
 			const pastEl = listEl.createDiv({ cls: "todo-past" });
 			for (const rt of past) {
 				pastEl.appendChild(
-					this.renderItem(rt, today, isSearch || isToday, tags, hits.get(rt))
+					this.renderItem(
+						rt,
+						today,
+						isSearch || isToday,
+						tags,
+						hits.get(rt),
+						justCompletedFingerprint
+					)
 				);
 			}
 		}
@@ -982,11 +1047,19 @@ export class TodoView extends ItemView {
 		today: string,
 		showList: boolean,
 		tags: TagInfo[],
-		search?: SearchHit
+		search?: SearchHit,
+		justCompletedFingerprint?: string | null
 	): HTMLElement {
 		const t = rt.task;
 		const row = createDiv({ cls: "todo-item" });
 		if (t.completed) row.addClass("is-completed");
+		if (
+			t.completed &&
+			justCompletedFingerprint &&
+			completionFingerprint(t) === justCompletedFingerprint
+		) {
+			row.addClass("todo-just-completed");
+		}
 		row.setAttr("draggable", "true");
 
 		// Single click toggles completion instantly. Clicks on the checkbox and
@@ -995,10 +1068,7 @@ export class TodoView extends ItemView {
 		row.addEventListener("click", (e) => {
 			const target = e.target as HTMLElement;
 			if (target.closest("input, button")) return;
-			void (async () => {
-				await this.plugin.store.toggleComplete(rt.task.raw, rt.index);
-				await this.refresh();
-			})();
+			void this.toggleTask(rt);
 		});
 
 		// Checkbox.
@@ -1008,10 +1078,7 @@ export class TodoView extends ItemView {
 		});
 		cb.checked = t.completed;
 		cb.addEventListener("change", () => {
-			void (async () => {
-				await this.plugin.store.toggleComplete(rt.task.raw, rt.index);
-				await this.refresh();
-			})();
+			void this.toggleTask(rt);
 		});
 
 		if (t.priority) {

@@ -308,6 +308,45 @@
 	color: var(--text-muted);
 }
 
+/* One-shot feedback for the row just marked complete (not shown when
+   un-completing, and not replayed on later unrelated re-renders — the
+   todo-just-completed class is only ever applied for a single render). */
+.todo-just-completed .todo-check {
+	animation: todo-check-pop 180ms ease-out;
+}
+
+.todo-just-completed .todo-text {
+	animation: todo-text-complete-fade 180ms ease-out both;
+}
+
+@keyframes todo-check-pop {
+	0% {
+		transform: scale(1);
+	}
+	40% {
+		transform: scale(1.3);
+	}
+	100% {
+		transform: scale(1);
+	}
+}
+
+@keyframes todo-text-complete-fade {
+	from {
+		color: var(--text-normal);
+	}
+	to {
+		color: var(--text-muted);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.todo-just-completed .todo-check,
+	.todo-just-completed .todo-text {
+		animation: none;
+	}
+}
+
 /* Clicking an item's text starts inline editing. */
 .todo-text {
 	cursor: text;
